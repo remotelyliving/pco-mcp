@@ -1,0 +1,70 @@
+[project]
+name = "pco-mcp"
+version = "0.1.0"
+description = "MCP server connecting ChatGPT to Planning Center Online"
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp>=3.2.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "httpx>=0.28.0",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30.0",
+    "alembic>=1.14.0",
+    "cryptography>=44.0.0",
+    "pydantic-settings>=2.7.0",
+    "jinja2>=3.1.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-cov>=6.0.0",
+    "httpx",
+    "mutmut>=3.2.0",
+    "mypy>=1.14.0",
+    "bandit>=1.8.0",
+    "ruff>=0.9.0",
+    "aiosqlite>=0.20.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "--strict-markers -x --tb=short"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+
+[tool.coverage.run]
+source = ["src/pco_mcp"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.",
+]
+
+[tool.mutmut]
+paths_to_mutate = "src/pco_mcp/"
+tests_dir = "tests/"
+runner = "python -m pytest -x --tb=no -q"
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "S", "B", "A", "C4", "SIM", "TCH"]
+
+[tool.bandit]
+targets = ["src/pco_mcp"]
