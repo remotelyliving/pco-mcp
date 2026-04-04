@@ -6,8 +6,7 @@ def test_settings_loads_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://user:pass@localhost/pco")
     monkeypatch.setenv("PCO_CLIENT_ID", "test-client-id")
     monkeypatch.setenv("PCO_CLIENT_SECRET", "test-client-secret")
-    monkeypatch.setenv("TOKEN_ENCRYPTION_KEY", "dGVzdC1lbmNyeXB0aW9uLWtleS0xMjM0NTY3ODk=")
-    monkeypatch.setenv("SECRET_KEY", "test-secret-key")
+    monkeypatch.setenv("TOKEN_ENCRYPTION_KEY", "HQYbzO62Z1jN8p4DURY5muSedU5KOoZqGf7oWytQ_BI=")
     monkeypatch.setenv("BASE_URL", "https://pco-mcp.example.com")
 
     from pco_mcp.config import Settings
@@ -18,15 +17,13 @@ def test_settings_loads_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.pco_client_secret == "test-client-secret"
     assert settings.base_url == "https://pco-mcp.example.com"
     assert settings.token_encryption_key != ""
-    assert settings.secret_key == "test-secret-key"
 
 
 def test_settings_has_defaults_for_optional_fields(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://user:pass@localhost/pco")
     monkeypatch.setenv("PCO_CLIENT_ID", "test-client-id")
     monkeypatch.setenv("PCO_CLIENT_SECRET", "test-client-secret")
-    monkeypatch.setenv("TOKEN_ENCRYPTION_KEY", "dGVzdC1lbmNyeXB0aW9uLWtleS0xMjM0NTY3ODk=")
-    monkeypatch.setenv("SECRET_KEY", "test-secret-key")
+    monkeypatch.setenv("TOKEN_ENCRYPTION_KEY", "HQYbzO62Z1jN8p4DURY5muSedU5KOoZqGf7oWytQ_BI=")
     monkeypatch.setenv("BASE_URL", "https://pco-mcp.example.com")
 
     from pco_mcp.config import Settings
@@ -42,7 +39,6 @@ def test_settings_missing_required_raises(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.delenv("PCO_CLIENT_ID", raising=False)
     monkeypatch.delenv("PCO_CLIENT_SECRET", raising=False)
     monkeypatch.delenv("TOKEN_ENCRYPTION_KEY", raising=False)
-    monkeypatch.delenv("SECRET_KEY", raising=False)
     monkeypatch.delenv("BASE_URL", raising=False)
 
     from pydantic import ValidationError

@@ -3,7 +3,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 READ_ANNOTATIONS = {"readOnlyHint": True, "openWorldHint": True}
-WRITE_ANNOTATIONS = {"readOnlyHint": False, "destructiveHint": False, "openWorldHint": True}
+WRITE_ANNOTATIONS = {"readOnlyHint": False, "destructiveHint": False, "openWorldHint": True, "confirmationHint": True}
 
 
 def register_people_tools(mcp: FastMCP) -> None:
@@ -93,4 +93,6 @@ def register_people_tools(mcp: FastMCP) -> None:
             fields["first_name"] = first_name
         if last_name is not None:
             fields["last_name"] = last_name
+        if email is not None:
+            fields["email"] = email
         return await api.update_person(person_id, **fields)

@@ -25,8 +25,7 @@ def app(mock_session_factory):
         pco_client_id="test-pco-client",
         pco_client_secret="test-pco-secret",
         base_url="https://pco-mcp.example.com",
-        token_encryption_key="dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleXQ=",
-        secret_key="test-secret",
+        token_encryption_key="HQYbzO62Z1jN8p4DURY5muSedU5KOoZqGf7oWytQ_BI=",
     )
     app.include_router(router, prefix="/oauth")
     return app

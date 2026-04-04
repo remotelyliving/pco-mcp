@@ -3,7 +3,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 READ_ANNOTATIONS = {"readOnlyHint": True, "openWorldHint": True}
-WRITE_ANNOTATIONS = {"readOnlyHint": False, "destructiveHint": False, "openWorldHint": True}
+WRITE_ANNOTATIONS = {"readOnlyHint": False, "destructiveHint": False, "openWorldHint": True, "confirmationHint": True}
 
 
 def register_services_tools(mcp: FastMCP) -> None:

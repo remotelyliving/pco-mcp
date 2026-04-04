@@ -9,7 +9,6 @@ class Settings(BaseSettings):
     pco_client_id: str
     pco_client_secret: str
     token_encryption_key: str
-    secret_key: str
     base_url: str
 
     # Optional with defaults

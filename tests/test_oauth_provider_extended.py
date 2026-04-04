@@ -41,7 +41,6 @@ def app(mock_session_factory):
         pco_client_secret="test-pco-secret",
         base_url="https://pco-mcp.example.com",
         token_encryption_key=VALID_FERNET_KEY,
-        secret_key="test-secret",
     )
     app.include_router(router, prefix="/oauth")
     return app

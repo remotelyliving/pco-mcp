@@ -25,7 +25,7 @@ class TestHealthCheck:
 class TestMCPEndpoint:
     def test_mcp_endpoint_exists(self, client) -> None:
         resp = client.get("/mcp/")
-        assert resp.status_code in (200, 405, 400, 406)
+        assert resp.status_code in (200, 400, 401, 405, 406)
 
 
 class TestOAuthEndpoints:

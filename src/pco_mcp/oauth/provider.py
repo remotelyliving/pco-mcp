@@ -17,7 +17,6 @@ def create_oauth_router(
     pco_client_secret: str,
     base_url: str,
     token_encryption_key: str,
-    secret_key: str,
 ) -> APIRouter:
     router = APIRouter()
 

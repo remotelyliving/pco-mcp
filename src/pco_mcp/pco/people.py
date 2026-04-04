@@ -19,9 +19,15 @@ class PeopleAPI:
         params: dict[str, Any] = {}
         if name:
             params["where[search_name]"] = name
+        if email and phone:
+            import warnings
+            warnings.warn(
+                "Both email and phone provided to search_people; email takes priority.",
+                stacklevel=2,
+            )
         if email:
             params["where[search_name_or_email]"] = email
-        if phone:
+        elif phone:
             params["where[search_name_or_email]"] = phone
         result = await self._client.get("/people/v2/people", params=params)
         return [self._simplify_person(p) for p in result.get("data", [])]
