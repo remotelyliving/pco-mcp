@@ -1,0 +1,206 @@
+import hashlib
+import secrets
+from datetime import UTC, datetime, timedelta
+
+from fastapi import APIRouter, Form, HTTPException, Query, Request
+from fastapi.responses import JSONResponse, RedirectResponse
+from sqlalchemy.ext.asyncio import async_sessionmaker
+
+_registered_clients: dict[str, dict] = {}
+_pending_auth_codes: dict[str, dict] = {}
+
+
+def create_oauth_router(
+    session_factory: async_sessionmaker,
+    pco_client_id: str,
+    pco_client_secret: str,
+    base_url: str,
+    token_encryption_key: str,
+    secret_key: str,
+) -> APIRouter:
+    router = APIRouter()
+
+    @router.post("/register", status_code=201)
+    async def register_client(request: Request) -> JSONResponse:
+        """Dynamic Client Registration (RFC 7591) for ChatGPT."""
+        body = await request.json()
+        redirect_uris = body.get("redirect_uris")
+        if not redirect_uris:
+            raise HTTPException(status_code=400, detail="redirect_uris required")
+
+        client_id = secrets.token_urlsafe(32)
+        client_secret = secrets.token_urlsafe(48)
+        _registered_clients[client_id] = {
+            "client_secret": client_secret,
+            "redirect_uris": redirect_uris,
+        }
+        return JSONResponse(
+            content={
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "redirect_uris": redirect_uris,
+            },
+            status_code=201,
+        )
+
+    @router.get("/authorize")
+    async def authorize(
+        client_id: str = Query(...),
+        redirect_uri: str = Query(...),
+        response_type: str = Query(...),
+        state: str = Query(""),
+        code_challenge: str = Query(""),
+        code_challenge_method: str = Query(""),
+    ) -> RedirectResponse:
+        """Authorization endpoint. Chains into PCO OAuth flow."""
+        internal_state = secrets.token_urlsafe(32)
+        _pending_auth_codes[internal_state] = {
+            "chatgpt_client_id": client_id,
+            "chatgpt_redirect_uri": redirect_uri,
+            "chatgpt_state": state,
+            "code_challenge": code_challenge,
+            "code_challenge_method": code_challenge_method,
+        }
+
+        pco_auth_url = (
+            f"https://api.planningcenteronline.com/oauth/authorize"
+            f"?client_id={pco_client_id}"
+            f"&redirect_uri={base_url}/oauth/pco-callback"
+            f"&response_type=code"
+            f"&scope=people+services"
+            f"&state={internal_state}"
+        )
+        return RedirectResponse(url=pco_auth_url)
+
+    @router.get("/pco-callback")
+    async def pco_callback(
+        code: str = Query(""),
+        state: str = Query(""),
+        error: str = Query(""),
+    ) -> RedirectResponse:
+        """Handle PCO OAuth callback, exchange code, issue our own code to ChatGPT."""
+        if error:
+            raise HTTPException(status_code=400, detail=f"PCO auth error: {error}")
+
+        pending = _pending_auth_codes.pop(state, None)
+        if not pending:
+            raise HTTPException(status_code=400, detail="Invalid or expired state")
+
+        from pco_mcp.oauth.pco_client import exchange_pco_code
+
+        pco_tokens = await exchange_pco_code(
+            code=code,
+            client_id=pco_client_id,
+            client_secret=pco_client_secret,
+            redirect_uri=f"{base_url}/oauth/pco-callback",
+        )
+
+        from pco_mcp.crypto import encrypt_token
+        from pco_mcp.models import User
+        from sqlalchemy import select
+
+        async with session_factory() as db:
+            from pco_mcp.oauth.pco_client import get_pco_me
+
+            me = await get_pco_me(pco_tokens["access_token"])
+
+            result = await db.execute(
+                select(User).where(User.pco_person_id == me["id"])
+            )
+            user = result.scalar_one_or_none()
+
+            if user is None:
+                user = User(
+                    pco_person_id=me["id"],
+                    pco_org_name=me.get("org_name"),
+                    pco_access_token_enc=encrypt_token(
+                        pco_tokens["access_token"], token_encryption_key
+                    ),
+                    pco_refresh_token_enc=encrypt_token(
+                        pco_tokens["refresh_token"], token_encryption_key
+                    ),
+                    pco_token_expires_at=datetime.now(UTC)
+                    + timedelta(seconds=pco_tokens.get("expires_in", 7200)),
+                )
+                db.add(user)
+            else:
+                user.pco_access_token_enc = encrypt_token(
+                    pco_tokens["access_token"], token_encryption_key
+                )
+                user.pco_refresh_token_enc = encrypt_token(
+                    pco_tokens["refresh_token"], token_encryption_key
+                )
+                user.pco_token_expires_at = datetime.now(UTC) + timedelta(
+                    seconds=pco_tokens.get("expires_in", 7200)
+                )
+            await db.commit()
+            await db.refresh(user)
+
+        our_code = secrets.token_urlsafe(48)
+        _pending_auth_codes[our_code] = {
+            "user_id": str(user.id),
+            "chatgpt_client_id": pending["chatgpt_client_id"],
+            "code_challenge": pending["code_challenge"],
+            "type": "auth_code",
+        }
+
+        redirect = (
+            f"{pending['chatgpt_redirect_uri']}"
+            f"?code={our_code}"
+            f"&state={pending['chatgpt_state']}"
+        )
+        return RedirectResponse(url=redirect)
+
+    @router.post("/token")
+    async def token(
+        grant_type: str = Form(...),
+        code: str = Form(""),
+        redirect_uri: str = Form(""),
+        client_id: str = Form(""),
+        client_secret: str = Form(""),
+        refresh_token: str = Form(""),
+    ) -> JSONResponse:
+        """Token endpoint. Exchanges auth codes for access tokens."""
+        if grant_type == "authorization_code":
+            pending = _pending_auth_codes.pop(code, None)
+            if not pending or pending.get("type") != "auth_code":
+                raise HTTPException(status_code=400, detail="Invalid authorization code")
+
+            access_token = secrets.token_urlsafe(48)
+            new_refresh_token = secrets.token_urlsafe(48)
+            token_hash = hashlib.sha256(access_token.encode()).hexdigest()
+
+            from pco_mcp.models import OAuthSession
+            import uuid
+
+            async with session_factory() as db:
+                session = OAuthSession(
+                    user_id=uuid.UUID(pending["user_id"]),
+                    chatgpt_access_token_hash=token_hash,
+                    expires_at=datetime.now(UTC) + timedelta(hours=24),
+                )
+                db.add(session)
+                await db.commit()
+
+            return JSONResponse(
+                content={
+                    "access_token": access_token,
+                    "token_type": "bearer",
+                    "expires_in": 86400,
+                    "refresh_token": new_refresh_token,
+                }
+            )
+
+        if grant_type == "refresh_token":
+            access_token = secrets.token_urlsafe(48)
+            return JSONResponse(
+                content={
+                    "access_token": access_token,
+                    "token_type": "bearer",
+                    "expires_in": 86400,
+                }
+            )
+
+        raise HTTPException(status_code=400, detail=f"Unsupported grant_type: {grant_type}")
+
+    return router
