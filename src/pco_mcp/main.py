@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastmcp import FastMCP
+from sqlalchemy import text
 
 from pco_mcp.config import Settings
 from pco_mcp.db import create_engine, create_session_factory
@@ -54,6 +55,11 @@ def create_app() -> FastAPI:
 
     @app.get("/health")
     async def health() -> JSONResponse:
+        try:
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+        except Exception:
+            return JSONResponse({"status": "unhealthy", "db": "error"}, status_code=503)
         return JSONResponse({"status": "healthy"})
 
     app.include_router(oauth_router, prefix="/oauth")

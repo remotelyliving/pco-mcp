@@ -31,6 +31,7 @@ class PCOClient:
                 "Authorization": f"Bearer {self._access_token}",
                 "Content-Type": "application/json",
             },
+            timeout=httpx.Timeout(10.0),
         )
 
     async def close(self) -> None:

@@ -14,7 +14,7 @@ async def exchange_pco_code(
     http_client: httpx.AsyncClient | None = None,
 ) -> dict[str, Any]:
     """Exchange a PCO authorization code for access + refresh tokens."""
-    client = http_client or httpx.AsyncClient()
+    client = http_client or httpx.AsyncClient(timeout=httpx.Timeout(10.0))
     try:
         resp = await client.post(
             PCO_TOKEN_URL,
@@ -40,7 +40,7 @@ async def get_pco_me(
     http_client: httpx.AsyncClient | None = None,
 ) -> dict[str, Any]:
     """Get the current user's PCO person ID and org info."""
-    client = http_client or httpx.AsyncClient()
+    client = http_client or httpx.AsyncClient(timeout=httpx.Timeout(10.0))
     try:
         resp = await client.get(
             PCO_ME_URL,
@@ -71,7 +71,7 @@ async def refresh_pco_token(
     http_client: httpx.AsyncClient | None = None,
 ) -> dict[str, Any]:
     """Refresh a PCO access token using a refresh token."""
-    client = http_client or httpx.AsyncClient()
+    client = http_client or httpx.AsyncClient(timeout=httpx.Timeout(10.0))
     try:
         resp = await client.post(
             PCO_TOKEN_URL,
