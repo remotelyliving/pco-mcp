@@ -1,0 +1,17 @@
+{
+    "data": {
+        "type": "Person",
+        "id": "1001",
+        "attributes": {
+            "first_name": "Alice",
+            "last_name": "Smith",
+            "email_addresses": [{"address": "alice@example.com"}],
+            "phone_numbers": [{"number": "555-0101"}],
+            "membership": "Member",
+            "status": "active",
+            "birthdate": "1990-05-15",
+            "gender": "Female",
+            "created_at": "2020-01-01T00:00:00Z"
+        }
+    }
+}

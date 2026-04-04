@@ -1,0 +1,29 @@
+{
+    "data": [
+        {
+            "type": "Person",
+            "id": "1001",
+            "attributes": {
+                "first_name": "Alice",
+                "last_name": "Smith",
+                "email_addresses": [{"address": "alice@example.com"}],
+                "phone_numbers": [{"number": "555-0101"}],
+                "membership": "Member",
+                "status": "active"
+            }
+        },
+        {
+            "type": "Person",
+            "id": "1002",
+            "attributes": {
+                "first_name": "Bob",
+                "last_name": "Jones",
+                "email_addresses": [{"address": "bob@example.com"}],
+                "phone_numbers": [],
+                "membership": "Visitor",
+                "status": "active"
+            }
+        }
+    ],
+    "meta": {"total_count": 2, "count": 2}
+}

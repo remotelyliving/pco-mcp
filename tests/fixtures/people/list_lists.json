@@ -1,0 +1,23 @@
+{
+    "data": [
+        {
+            "type": "List",
+            "id": "501",
+            "attributes": {
+                "name": "Volunteers",
+                "description": "Active volunteers",
+                "total_count": 45
+            }
+        },
+        {
+            "type": "List",
+            "id": "502",
+            "attributes": {
+                "name": "New Members 2026",
+                "description": null,
+                "total_count": 12
+            }
+        }
+    ],
+    "meta": {"total_count": 2, "count": 2}
+}
