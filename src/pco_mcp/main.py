@@ -9,6 +9,7 @@ from sqlalchemy import text
 
 from pco_mcp.config import Settings
 from pco_mcp.db import create_engine, create_session_factory
+from pco_mcp.middleware import BearerTokenMiddleware
 from pco_mcp.models import Base
 from pco_mcp.oauth.provider import create_oauth_router
 from pco_mcp.tools.people import register_people_tools
@@ -40,7 +41,6 @@ def create_app() -> FastAPI:
         pco_client_secret=settings.pco_client_secret,
         base_url=settings.base_url,
         token_encryption_key=settings.token_encryption_key,
-        secret_key=settings.secret_key,
     )
 
     @asynccontextmanager
@@ -68,6 +68,14 @@ def create_app() -> FastAPI:
     from pco_mcp.web.routes import router as web_router  # noqa: PLC0415
     app.include_router(web_router)
 
-    app.mount("/mcp", mcp_app)
+    wrapped_mcp = BearerTokenMiddleware(
+        mcp_app,
+        session_factory=session_factory,
+        token_encryption_key=settings.token_encryption_key,
+        pco_client_id=settings.pco_client_id,
+        pco_client_secret=settings.pco_client_secret,
+        pco_api_base=settings.pco_api_base,
+    )
+    app.mount("/mcp", wrapped_mcp)
 
     return app
