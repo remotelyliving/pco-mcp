@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Your MCP Connection{% endblock %}
+{% block title %}Your Planning Center Connection{% endblock %}
 {% block content %}
 <section>
     <h1>You're connected!</h1>
-    <p>Your MCP endpoint URL:</p>
+    <p>Your Planning Center connection link:</p>
     <pre><code id="mcp-url">{{ mcp_url }}</code></pre>
-    <button onclick="navigator.clipboard.writeText(document.getElementById('mcp-url').textContent)">
-        Copy URL
+    <button onclick="navigator.clipboard.writeText(document.getElementById('mcp-url').textContent).then(() => { this.textContent = 'Copied!'; setTimeout(() => this.textContent = 'Copy Link', 2000); })">
+        Copy Link
     </button>
     <p>Organization: {{ org_name }}</p>
     <p><a href="/setup-guide">Setup Guide: How to add this to ChatGPT</a></p>

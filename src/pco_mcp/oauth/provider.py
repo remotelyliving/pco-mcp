@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Form, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,7 @@ def create_oauth_router(
     pco_client_secret: str,
     base_url: str,
     token_encryption_key: str,
+    templates: Jinja2Templates | None = None,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -132,11 +134,25 @@ def create_oauth_router(
         """Handle PCO OAuth callback, exchange code, issue our own code to ChatGPT."""
         if error:
             logger.error("PCO OAuth callback error (state=%s, error=%s)", state, error)
+            if templates is not None:
+                return templates.TemplateResponse(
+                    request,
+                    "error.html",
+                    {"message": "We couldn't connect to your Planning Center account. Please try again."},
+                    status_code=400,
+                )
             raise HTTPException(status_code=400, detail=f"PCO auth error: {error}")
 
         pending = _pending_auth_codes.pop(state, None)
         if not pending:
             logger.warning("Invalid or expired OAuth state received (state=%s)", state)
+            if templates is not None:
+                return templates.TemplateResponse(
+                    request,
+                    "error.html",
+                    {"message": "Your session expired. Please start over."},
+                    status_code=400,
+                )
             raise HTTPException(status_code=400, detail="Invalid or expired state")
 
         from pco_mcp.oauth.pco_client import exchange_pco_code
