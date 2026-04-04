@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Connect ChatGPT to Planning Center{% endblock %}
+{% block content %}
+<section>
+    <hgroup>
+        <h1>Connect ChatGPT to Planning Center</h1>
+        <p>Ask ChatGPT about your church's people, services, songs, and schedules.</p>
+    </hgroup>
+    <p>
+        <a href="/auth/start" role="button">Get Started</a>
+    </p>
+    <h2>How it works</h2>
+    <ol>
+        <li>Click "Get Started" and log in with your Planning Center account</li>
+        <li>Copy the MCP endpoint URL we give you</li>
+        <li>Paste it into ChatGPT's Settings &gt; Apps</li>
+        <li>Start asking ChatGPT about your church data</li>
+    </ol>
+</section>
+{% endblock %}
