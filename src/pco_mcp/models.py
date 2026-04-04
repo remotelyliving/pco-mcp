@@ -34,6 +34,7 @@ class OAuthSession(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     chatgpt_access_token_hash: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    refresh_token_hash: Mapped[str | None] = mapped_column(Text, unique=True, nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)

@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import logging
 import secrets
@@ -89,6 +90,15 @@ def create_oauth_router(
         code_challenge_method: str = Query(""),
     ) -> RedirectResponse:
         """Authorization endpoint. Chains into PCO OAuth flow."""
+        # C5: Validate redirect_uri against registered client.
+        # Allow unregistered client_ids through — ChatGPT may hit /authorize before /register.
+        if client_id in _registered_clients:
+            registered = _registered_clients[client_id]
+            if redirect_uri not in registered["redirect_uris"]:
+                raise HTTPException(
+                    status_code=400, detail="redirect_uri not registered for client"
+                )
+
         internal_state = secrets.token_urlsafe(32)
         _pending_auth_codes[internal_state] = {
             "chatgpt_client_id": client_id,
@@ -220,17 +230,37 @@ def create_oauth_router(
         client_id: str = Form(""),
         client_secret: str = Form(""),
         refresh_token: str = Form(""),
+        code_verifier: str = Form(""),
     ) -> JSONResponse:
         """Token endpoint. Exchanges auth codes for access tokens."""
         if grant_type == "authorization_code":
+            # C4: Validate client credentials
+            registered = _registered_clients.get(client_id)
+            if registered is None:
+                raise HTTPException(status_code=401, detail="Unknown client_id")
+            if not secrets.compare_digest(client_secret, registered["client_secret"]):
+                raise HTTPException(status_code=401, detail="Invalid client_secret")
+
             pending = _pending_auth_codes.pop(code, None)
             if not pending or pending.get("type") != "auth_code":
                 logger.warning("Invalid authorization code presented at /token")
                 raise HTTPException(status_code=400, detail="Invalid authorization code")
 
+            # C3: Verify PKCE code_verifier if a code_challenge was stored
+            stored_challenge = pending.get("code_challenge", "")
+            if stored_challenge:
+                if not code_verifier:
+                    raise HTTPException(status_code=400, detail="code_verifier required")
+                verifier_hash = base64.urlsafe_b64encode(
+                    hashlib.sha256(code_verifier.encode()).digest()
+                ).rstrip(b"=").decode()
+                if not secrets.compare_digest(verifier_hash, stored_challenge):
+                    raise HTTPException(status_code=400, detail="Invalid code_verifier")
+
             access_token = secrets.token_urlsafe(48)
             new_refresh_token = secrets.token_urlsafe(48)
             token_hash = hashlib.sha256(access_token.encode()).hexdigest()
+            rt_hash = hashlib.sha256(new_refresh_token.encode()).hexdigest()
 
             import uuid
 
@@ -240,6 +270,7 @@ def create_oauth_router(
                 session = OAuthSession(
                     user_id=uuid.UUID(pending["user_id"]),
                     chatgpt_access_token_hash=token_hash,
+                    refresh_token_hash=rt_hash,
                     expires_at=datetime.now(UTC) + timedelta(hours=24),
                 )
                 db.add(session)
@@ -260,12 +291,50 @@ def create_oauth_router(
             )
 
         if grant_type == "refresh_token":
-            access_token = secrets.token_urlsafe(48)
+            # C2: Validate refresh token, rotate session
+            if not refresh_token:
+                raise HTTPException(status_code=400, detail="refresh_token required")
+
+            rt_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
+
+            from sqlalchemy import select
+
+            from pco_mcp.models import OAuthSession
+
+            async with session_factory() as db:
+                result = await db.execute(
+                    select(OAuthSession).where(OAuthSession.refresh_token_hash == rt_hash)
+                )
+                old_session = result.scalar_one_or_none()
+                if old_session is None:
+                    raise HTTPException(status_code=401, detail="Invalid refresh_token")
+
+                user_id = old_session.user_id
+
+                # Delete old session (token rotation)
+                await db.delete(old_session)
+
+                # Issue new tokens
+                new_access_token = secrets.token_urlsafe(48)
+                new_rt = secrets.token_urlsafe(48)
+                new_token_hash = hashlib.sha256(new_access_token.encode()).hexdigest()
+                new_rt_hash = hashlib.sha256(new_rt.encode()).hexdigest()
+
+                new_session = OAuthSession(
+                    user_id=user_id,
+                    chatgpt_access_token_hash=new_token_hash,
+                    refresh_token_hash=new_rt_hash,
+                    expires_at=datetime.now(UTC) + timedelta(hours=24),
+                )
+                db.add(new_session)
+                await db.commit()
+
             return JSONResponse(
                 content={
-                    "access_token": access_token,
+                    "access_token": new_access_token,
                     "token_type": "bearer",
                     "expires_in": 86400,
+                    "refresh_token": new_rt,
                 }
             )
 

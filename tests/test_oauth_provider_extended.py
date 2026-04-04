@@ -1,4 +1,6 @@
 """Extended tests for OAuth provider — pco_callback and token exchange paths."""
+import base64
+import hashlib
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -49,6 +51,15 @@ def app(mock_session_factory):
 @pytest.fixture
 def client(app):
     return TestClient(app, raise_server_exceptions=True)
+
+
+def _register_client(client, redirect_uris=None):
+    """Helper: register a client and return its credentials."""
+    if redirect_uris is None:
+        redirect_uris = ["https://chatgpt.com/callback"]
+    resp = client.post("/oauth/register", json={"redirect_uris": redirect_uris})
+    assert resp.status_code == 201
+    return resp.json()
 
 
 class TestPcoCallbackEndpoint:
@@ -185,12 +196,15 @@ class TestTokenEndpointExtended:
     ) -> None:
         factory, session = mock_session_factory
 
+        # Register client first (C4 requirement)
+        info = _register_client(client)
+
         # Pre-populate a valid auth code
         our_code = "valid-auth-code-xyz"
         user_id = str(uuid.uuid4())
         _pending_auth_codes[our_code] = {
             "user_id": user_id,
-            "chatgpt_client_id": "test-client",
+            "chatgpt_client_id": info["client_id"],
             "code_challenge": "",
             "type": "auth_code",
         }
@@ -204,8 +218,8 @@ class TestTokenEndpointExtended:
                 "grant_type": "authorization_code",
                 "code": our_code,
                 "redirect_uri": "https://chatgpt.com/callback",
-                "client_id": "test-client",
-                "client_secret": "test-secret",
+                "client_id": info["client_id"],
+                "client_secret": info["client_secret"],
             },
         )
         assert resp.status_code == 200
@@ -215,19 +229,212 @@ class TestTokenEndpointExtended:
         assert "expires_in" in body
         assert "refresh_token" in body
 
-    def test_token_with_refresh_grant_returns_new_token(self, client) -> None:
+    def test_token_refresh_token_hash_stored(
+        self, client, mock_session_factory
+    ) -> None:
+        """C2: refresh_token_hash should be stored in the DB session."""
+        factory, session = mock_session_factory
+
+        info = _register_client(client)
+        our_code = "code-for-hash-check"
+        user_id = str(uuid.uuid4())
+        _pending_auth_codes[our_code] = {
+            "user_id": user_id,
+            "chatgpt_client_id": info["client_id"],
+            "code_challenge": "",
+            "type": "auth_code",
+        }
+
+        captured_sessions = []
+        original_add = MagicMock(side_effect=lambda s: captured_sessions.append(s))
+        session.add = original_add
+        session.commit = AsyncMock()
+
+        resp = client.post(
+            "/oauth/token",
+            data={
+                "grant_type": "authorization_code",
+                "code": our_code,
+                "redirect_uri": "https://chatgpt.com/callback",
+                "client_id": info["client_id"],
+                "client_secret": info["client_secret"],
+            },
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        # Verify that the stored hash matches the returned refresh token
+        rt = body["refresh_token"]
+        expected_hash = hashlib.sha256(rt.encode()).hexdigest()
+        assert len(captured_sessions) == 1
+        assert captured_sessions[0].refresh_token_hash == expected_hash
+
+    def test_token_with_refresh_grant_valid(self, client, mock_session_factory) -> None:
+        """C2: A valid refresh_token should return new tokens."""
+        factory, session = mock_session_factory
+
+        refresh_token_value = "valid-refresh-token-xyz"
+        rt_hash = hashlib.sha256(refresh_token_value.encode()).hexdigest()
+
+        from pco_mcp.models import OAuthSession
+
+        fake_old_session = MagicMock(spec=OAuthSession)
+        fake_old_session.user_id = uuid.uuid4()
+        fake_old_session.refresh_token_hash = rt_hash
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = fake_old_session
+        session.execute = AsyncMock(return_value=mock_result)
+        session.delete = AsyncMock()
+        session.add = MagicMock()
+        session.commit = AsyncMock()
+
         resp = client.post(
             "/oauth/token",
             data={
                 "grant_type": "refresh_token",
-                "refresh_token": "some-refresh-token",
+                "refresh_token": refresh_token_value,
             },
         )
         assert resp.status_code == 200
         body = resp.json()
         assert "access_token" in body
+        assert "refresh_token" in body
         assert body["token_type"] == "bearer"
         assert "expires_in" in body
+        # Old session was deleted (token rotation)
+        session.delete.assert_called_once_with(fake_old_session)
+
+    def test_token_with_refresh_grant_invalid_token_returns_401(
+        self, client, mock_session_factory
+    ) -> None:
+        """C2: An invalid refresh_token should return 401."""
+        factory, session = mock_session_factory
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        session.execute = AsyncMock(return_value=mock_result)
+
+        resp = client.post(
+            "/oauth/token",
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": "bogus-refresh-token",
+            },
+        )
+        assert resp.status_code == 401
+
+    def test_token_with_refresh_grant_missing_token_returns_400(self, client) -> None:
+        """C2: Missing refresh_token body field returns 400."""
+        resp = client.post(
+            "/oauth/token",
+            data={
+                "grant_type": "refresh_token",
+            },
+        )
+        assert resp.status_code == 400
+
+    def test_token_pkce_valid_verifier(
+        self, client, mock_session_factory
+    ) -> None:
+        """C3: Valid PKCE code_verifier is accepted."""
+        factory, session = mock_session_factory
+
+        info = _register_client(client)
+
+        code_verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+        verifier_hash = base64.urlsafe_b64encode(
+            hashlib.sha256(code_verifier.encode()).digest()
+        ).rstrip(b"=").decode()
+
+        our_code = "pkce-auth-code"
+        user_id = str(uuid.uuid4())
+        _pending_auth_codes[our_code] = {
+            "user_id": user_id,
+            "chatgpt_client_id": info["client_id"],
+            "code_challenge": verifier_hash,
+            "type": "auth_code",
+        }
+
+        session.add = MagicMock()
+        session.commit = AsyncMock()
+
+        resp = client.post(
+            "/oauth/token",
+            data={
+                "grant_type": "authorization_code",
+                "code": our_code,
+                "redirect_uri": "https://chatgpt.com/callback",
+                "client_id": info["client_id"],
+                "client_secret": info["client_secret"],
+                "code_verifier": code_verifier,
+            },
+        )
+        assert resp.status_code == 200
+
+    def test_token_pkce_invalid_verifier_returns_400(
+        self, client, mock_session_factory
+    ) -> None:
+        """C3: Wrong code_verifier is rejected with 400."""
+        factory, session = mock_session_factory
+
+        info = _register_client(client)
+
+        code_verifier = "correct-verifier"
+        verifier_hash = base64.urlsafe_b64encode(
+            hashlib.sha256(code_verifier.encode()).digest()
+        ).rstrip(b"=").decode()
+
+        our_code = "pkce-fail-code"
+        user_id = str(uuid.uuid4())
+        _pending_auth_codes[our_code] = {
+            "user_id": user_id,
+            "chatgpt_client_id": info["client_id"],
+            "code_challenge": verifier_hash,
+            "type": "auth_code",
+        }
+
+        resp = client.post(
+            "/oauth/token",
+            data={
+                "grant_type": "authorization_code",
+                "code": our_code,
+                "redirect_uri": "https://chatgpt.com/callback",
+                "client_id": info["client_id"],
+                "client_secret": info["client_secret"],
+                "code_verifier": "wrong-verifier",
+            },
+        )
+        assert resp.status_code == 400
+
+    def test_token_pkce_missing_verifier_returns_400(
+        self, client, mock_session_factory
+    ) -> None:
+        """C3: Missing code_verifier when challenge is present returns 400."""
+        factory, session = mock_session_factory
+
+        info = _register_client(client)
+
+        our_code = "pkce-missing-verifier-code"
+        user_id = str(uuid.uuid4())
+        _pending_auth_codes[our_code] = {
+            "user_id": user_id,
+            "chatgpt_client_id": info["client_id"],
+            "code_challenge": "some-challenge-hash",
+            "type": "auth_code",
+        }
+
+        resp = client.post(
+            "/oauth/token",
+            data={
+                "grant_type": "authorization_code",
+                "code": our_code,
+                "redirect_uri": "https://chatgpt.com/callback",
+                "client_id": info["client_id"],
+                "client_secret": info["client_secret"],
+                # No code_verifier
+            },
+        )
+        assert resp.status_code == 400
 
     def test_token_with_unsupported_grant_type_returns_400(self, client) -> None:
         resp = client.post(
@@ -242,11 +449,13 @@ class TestTokenEndpointExtended:
         """Auth code should be consumed (one-time use)."""
         factory, session = mock_session_factory
 
+        info = _register_client(client)
+
         our_code = "one-time-code"
         user_id = str(uuid.uuid4())
         _pending_auth_codes[our_code] = {
             "user_id": user_id,
-            "chatgpt_client_id": "test-client",
+            "chatgpt_client_id": info["client_id"],
             "code_challenge": "",
             "type": "auth_code",
         }
@@ -260,8 +469,8 @@ class TestTokenEndpointExtended:
                 "grant_type": "authorization_code",
                 "code": our_code,
                 "redirect_uri": "https://chatgpt.com/callback",
-                "client_id": "test-client",
-                "client_secret": "test-secret",
+                "client_id": info["client_id"],
+                "client_secret": info["client_secret"],
             },
         )
         assert resp1.status_code == 200
@@ -273,8 +482,8 @@ class TestTokenEndpointExtended:
                 "grant_type": "authorization_code",
                 "code": our_code,
                 "redirect_uri": "https://chatgpt.com/callback",
-                "client_id": "test-client",
-                "client_secret": "test-secret",
+                "client_id": info["client_id"],
+                "client_secret": info["client_secret"],
             },
         )
         assert resp2.status_code == 400
