@@ -1,0 +1,23 @@
+{
+    "data": [
+        {
+            "type": "ServiceType",
+            "id": "201",
+            "attributes": {
+                "name": "Sunday Morning",
+                "frequency": "Every week",
+                "last_plan_from": "2026-03-30"
+            }
+        },
+        {
+            "type": "ServiceType",
+            "id": "202",
+            "attributes": {
+                "name": "Wednesday Night",
+                "frequency": "Every week",
+                "last_plan_from": "2026-04-02"
+            }
+        }
+    ],
+    "meta": {"total_count": 2, "count": 2}
+}
