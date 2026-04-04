@@ -1,26 +1,12 @@
 # tests/test_main.py
-from unittest.mock import patch
-
 import pytest
 from fastapi.testclient import TestClient
 
 
 @pytest.fixture
 def app():
-    with patch.dict(
-        "os.environ",
-        {
-            "DATABASE_URL": "sqlite+aiosqlite:///:memory:",
-            "PCO_CLIENT_ID": "test-client",
-            "PCO_CLIENT_SECRET": "test-secret",
-            "TOKEN_ENCRYPTION_KEY": "dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleXQ=",
-            "SECRET_KEY": "test-secret-key",
-            "BASE_URL": "https://pco-mcp.example.com",
-        },
-    ):
-        from pco_mcp.main import create_app
-        app = create_app()
-        return app
+    from pco_mcp.main import create_app
+    return create_app()
 
 
 @pytest.fixture
