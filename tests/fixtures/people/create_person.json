@@ -1,0 +1,14 @@
+{
+    "data": {
+        "type": "Person",
+        "id": "1099",
+        "attributes": {
+            "first_name": "New",
+            "last_name": "Person",
+            "email_addresses": [{"address": "new@example.com"}],
+            "phone_numbers": [],
+            "membership": null,
+            "status": "active"
+        }
+    }
+}

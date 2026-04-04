@@ -1,0 +1,186 @@
+"""Tests that invoke the actual tool function bodies for services tools.
+
+These tests call the actual decorated tool functions via their .fn attribute,
+after setting up the per-request context with a mocked PCO client.
+"""
+from unittest.mock import AsyncMock
+
+import pytest
+
+from pco_mcp.pco.client import PCOClient
+from pco_mcp.tools._context import set_pco_client
+
+
+@pytest.fixture
+def mock_client() -> PCOClient:
+    return AsyncMock(spec=PCOClient)
+
+
+@pytest.fixture(autouse=True)
+def setup_context(mock_client: PCOClient) -> None:
+    """Set up a mock PCO client in context before each test."""
+    set_pco_client(mock_client)
+
+
+def _get_tool_fn(mcp, name):
+    """Return the raw async function for a named tool."""
+    for k, v in mcp._local_provider._components.items():
+        if k.startswith("tool:") and v.name == name:
+            return v.fn
+    raise KeyError(f"Tool {name!r} not found")
+
+
+def make_mcp():
+    from fastmcp import FastMCP
+    from pco_mcp.tools.services import register_services_tools
+
+    mcp = FastMCP("test")
+    register_services_tools(mcp)
+    return mcp
+
+
+class TestListServiceTypesToolBody:
+    async def test_list_service_types(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = {
+            "data": [
+                {
+                    "type": "ServiceType",
+                    "id": "201",
+                    "attributes": {
+                        "name": "Sunday Morning",
+                        "frequency": "Every week",
+                        "last_plan_from": "2026-03-30",
+                    },
+                }
+            ]
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "list_service_types")
+        types = await fn()
+        assert len(types) == 1
+        assert types[0]["name"] == "Sunday Morning"
+
+
+class TestGetUpcomingPlansToolBody:
+    async def test_get_upcoming_plans(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = {
+            "data": [
+                {
+                    "type": "Plan",
+                    "id": "301",
+                    "attributes": {
+                        "title": "Easter Service",
+                        "dates": "April 20, 2026",
+                        "sort_date": "2026-04-20T09:00:00Z",
+                        "items_count": 12,
+                        "needed_positions_count": 3,
+                    },
+                }
+            ]
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "get_upcoming_plans")
+        plans = await fn(service_type_id="201")
+        assert len(plans) == 1
+        assert plans[0]["title"] == "Easter Service"
+
+
+class TestGetPlanDetailsToolBody:
+    async def test_get_plan_details(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = {
+            "data": {
+                "type": "Plan",
+                "id": "301",
+                "attributes": {
+                    "title": "Easter Service",
+                    "dates": "April 20, 2026",
+                    "sort_date": "2026-04-20T09:00:00Z",
+                    "items_count": 12,
+                    "needed_positions_count": 3,
+                },
+            }
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "get_plan_details")
+        plan = await fn(service_type_id="201", plan_id="301")
+        assert plan["id"] == "301"
+        assert plan["title"] == "Easter Service"
+
+
+class TestListSongsToolBody:
+    async def test_list_songs_no_query(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = {
+            "data": [
+                {
+                    "type": "Song",
+                    "id": "401",
+                    "attributes": {
+                        "title": "Amazing Grace",
+                        "author": "John Newton",
+                        "ccli_number": "12345",
+                        "last_scheduled_at": "2026-03-30",
+                    },
+                }
+            ]
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "list_songs")
+        songs = await fn()
+        assert len(songs) == 1
+        assert songs[0]["title"] == "Amazing Grace"
+
+    async def test_list_songs_with_query(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = {"data": []}
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "list_songs")
+        songs = await fn(query="Amazing")
+        assert songs == []
+
+
+class TestListTeamMembersToolBody:
+    async def test_list_team_members(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = {
+            "data": [
+                {
+                    "type": "PlanPerson",
+                    "id": "501",
+                    "attributes": {
+                        "name": "Alice Smith",
+                        "team_position_name": "Vocalist",
+                        "status": "C",
+                        "notification_sent_at": None,
+                    },
+                }
+            ]
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "list_team_members")
+        members = await fn(service_type_id="201", plan_id="301")
+        assert len(members) == 1
+        assert members[0]["person_name"] == "Alice Smith"
+
+
+class TestScheduleTeamMemberToolBody:
+    async def test_schedule_team_member(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = {
+            "data": {
+                "type": "PlanPerson",
+                "id": "503",
+                "attributes": {
+                    "name": "Carol Davis",
+                    "team_position_name": "Pianist",
+                    "status": "U",
+                    "notification_sent_at": None,
+                },
+            }
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "schedule_team_member")
+        result = await fn(
+            service_type_id="201",
+            plan_id="301",
+            person_id="1003",
+            team_position_name="Pianist",
+        )
+        assert result["id"] == "503"
+        assert result["team_position_name"] == "Pianist"

@@ -1,0 +1,13 @@
+{
+    "data": {
+        "type": "Plan",
+        "id": "301",
+        "attributes": {
+            "title": "Easter Service",
+            "dates": "April 20, 2026",
+            "sort_date": "2026-04-20T09:00:00Z",
+            "items_count": 12,
+            "needed_positions_count": 3
+        }
+    }
+}

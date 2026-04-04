@@ -1,0 +1,25 @@
+{
+    "data": [
+        {
+            "type": "PlanPerson",
+            "id": "501",
+            "attributes": {
+                "name": "Alice Smith",
+                "team_position_name": "Vocalist",
+                "status": "C",
+                "notification_sent_at": null
+            }
+        },
+        {
+            "type": "PlanPerson",
+            "id": "502",
+            "attributes": {
+                "name": "Bob Jones",
+                "team_position_name": "Sound Tech",
+                "status": "U",
+                "notification_sent_at": null
+            }
+        }
+    ],
+    "meta": {"total_count": 2, "count": 2}
+}
