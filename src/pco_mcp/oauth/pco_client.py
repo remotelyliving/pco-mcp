@@ -1,6 +1,9 @@
+import logging
 from typing import Any
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 PCO_TOKEN_URL = "https://api.planningcenteronline.com/oauth/token"  # noqa: S105
 PCO_ME_URL = "https://api.planningcenteronline.com/me"
@@ -27,7 +30,9 @@ async def exchange_pco_code(
             },
         )
         if not resp.is_success:
+            logger.warning("PCO token exchange failed: status=%s", resp.status_code)
             raise Exception(f"PCO token exchange failed: {resp.status_code} {resp.text}")
+        logger.info("PCO token exchange successful")
         result: dict[str, Any] = resp.json()
         return result
     finally:
@@ -47,6 +52,7 @@ async def get_pco_me(
             headers={"Authorization": f"Bearer {access_token}"},
         )
         if not resp.is_success:
+            logger.warning("PCO /me request failed: status=%s", resp.status_code)
             raise Exception(f"PCO /me request failed: {resp.status_code}")
         body: dict[str, Any] = resp.json()
         data = body["data"]

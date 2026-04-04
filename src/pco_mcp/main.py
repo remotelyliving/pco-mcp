@@ -1,4 +1,5 @@
 # src/pco_mcp/main.py
+import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -15,9 +16,15 @@ from pco_mcp.oauth.provider import create_oauth_router
 from pco_mcp.tools.people import register_people_tools
 from pco_mcp.tools.services import register_services_tools
 
+logger = logging.getLogger(__name__)
+
 
 def create_app() -> FastAPI:
     """Create and wire the full application."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    )
     settings = Settings()
     engine = create_engine(settings)
     session_factory = create_session_factory(engine)
@@ -45,11 +52,14 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+        logger.info("pco-mcp starting up (base_url=%s)", settings.base_url)
         async with mcp_app.lifespan(mcp_app):
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
+            logger.info("Database schema ready")
             yield
             await engine.dispose()
+            logger.info("pco-mcp shut down")
 
     app = FastAPI(title="pco-mcp", lifespan=lifespan)
 

@@ -1,6 +1,9 @@
+import logging
 from typing import Any
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 class PCOAPIError(Exception):
@@ -52,27 +55,27 @@ class PCOClient:
 
     async def get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         """Make a GET request to the PCO API. Raises on non-2xx."""
-        response = await self._client.get(
-            self._url(path), params=params, headers=self._auth_headers()
-        )
+        url = self._url(path)
+        response = await self._client.get(url, params=params, headers=self._auth_headers())
+        logger.debug("GET %s -> %s", url, response.status_code)
         self._check_response(response)
         result: dict[str, Any] = response.json()
         return result
 
     async def post(self, path: str, data: dict[str, Any]) -> dict[str, Any]:
         """Make a POST request to the PCO API."""
-        response = await self._client.post(
-            self._url(path), json=data, headers=self._auth_headers()
-        )
+        url = self._url(path)
+        response = await self._client.post(url, json=data, headers=self._auth_headers())
+        logger.debug("POST %s -> %s", url, response.status_code)
         self._check_response(response)
         result: dict[str, Any] = response.json()
         return result
 
     async def patch(self, path: str, data: dict[str, Any]) -> dict[str, Any]:
         """Make a PATCH request to the PCO API."""
-        response = await self._client.patch(
-            self._url(path), json=data, headers=self._auth_headers()
-        )
+        url = self._url(path)
+        response = await self._client.patch(url, json=data, headers=self._auth_headers())
+        logger.debug("PATCH %s -> %s", url, response.status_code)
         self._check_response(response)
         result: dict[str, Any] = response.json()
         return result
@@ -98,11 +101,25 @@ class PCOClient:
     def _check_response(self, response: httpx.Response) -> None:
         """Check response status and raise appropriate errors."""
         if response.is_success:
+            # Warn if rate-limit headroom is low (threshold: <10 remaining)
+            remaining = response.headers.get("X-RateLimit-Remaining")
+            if remaining is not None:
+                try:
+                    if int(remaining) < 10:
+                        logger.warning(
+                            "PCO rate limit approaching: %s requests remaining", remaining
+                        )
+                except ValueError:
+                    pass
             return
         detail = self._extract_error_detail(response)
         if response.status_code == 429:
             retry_after = int(response.headers.get("Retry-After", "20"))
+            logger.error(
+                "PCO rate limit hit (429) — retry after %ss: %s", retry_after, detail
+            )
             raise PCORateLimitError(retry_after=retry_after, detail=detail)
+        logger.warning("PCO API non-success response: %s %s", response.status_code, detail)
         raise PCOAPIError(status_code=response.status_code, detail=detail)
 
     def _extract_error_detail(self, response: httpx.Response) -> str:
