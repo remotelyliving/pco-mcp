@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastmcp import FastMCP
 
 READ_ANNOTATIONS = {"readOnlyHint": True, "openWorldHint": True}
@@ -8,7 +10,7 @@ def register_services_tools(mcp: FastMCP) -> None:
     """Register all Services module tools on the given FastMCP instance."""
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def list_service_types() -> list[dict]:
+    async def list_service_types() -> list[dict[str, Any]]:
         """List all service types in Planning Center Services.
 
         Returns service types like "Sunday Morning", "Wednesday Night", etc.
@@ -20,7 +22,7 @@ def register_services_tools(mcp: FastMCP) -> None:
         return await api.list_service_types()
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def get_upcoming_plans(service_type_id: str) -> list[dict]:
+    async def get_upcoming_plans(service_type_id: str) -> list[dict[str, Any]]:
         """Get upcoming service plans for a specific service type.
 
         Returns future plans with dates, item counts, and needed positions.
@@ -31,7 +33,7 @@ def register_services_tools(mcp: FastMCP) -> None:
         return await api.get_upcoming_plans(service_type_id)
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def get_plan_details(service_type_id: str, plan_id: str) -> dict:
+    async def get_plan_details(service_type_id: str, plan_id: str) -> dict[str, Any]:
         """Get full details for a specific service plan.
 
         Returns the plan with songs, items, team assignments, and times.
@@ -42,7 +44,7 @@ def register_services_tools(mcp: FastMCP) -> None:
         return await api.get_plan_details(service_type_id, plan_id)
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def list_songs(query: str | None = None) -> list[dict]:
+    async def list_songs(query: str | None = None) -> list[dict[str, Any]]:
         """Search or list songs in the Planning Center song library.
 
         Optionally filter by title. Returns song title, author, CCLI number,
@@ -54,7 +56,7 @@ def register_services_tools(mcp: FastMCP) -> None:
         return await api.list_songs(query=query)
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def list_team_members(service_type_id: str, plan_id: str) -> list[dict]:
+    async def list_team_members(service_type_id: str, plan_id: str) -> list[dict[str, Any]]:
         """List team members and their positions for a service plan.
 
         Returns each team member's name, position, and status (confirmed/pending/declined).
@@ -70,7 +72,7 @@ def register_services_tools(mcp: FastMCP) -> None:
         plan_id: str,
         person_id: str,
         team_position_name: str,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Schedule a person to a team position in a service plan.
 
         Provide the service type ID, plan ID, person ID, and the position name

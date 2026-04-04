@@ -1,3 +1,5 @@
+from typing import Any
+
 import httpx
 
 
@@ -40,35 +42,46 @@ class PCOClient:
             return path
         return self._base_url + "/" + path.lstrip("/")
 
-    def _auth_headers(self) -> dict:
+    def _auth_headers(self) -> dict[str, str]:
         """Return authorization headers for each request."""
         return {
             "Authorization": f"Bearer {self._access_token}",
             "Content-Type": "application/json",
         }
 
-    async def get(self, path: str, params: dict | None = None) -> dict:
+    async def get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         """Make a GET request to the PCO API. Raises on non-2xx."""
-        response = await self._client.get(self._url(path), params=params, headers=self._auth_headers())
+        response = await self._client.get(
+            self._url(path), params=params, headers=self._auth_headers()
+        )
         self._check_response(response)
-        return response.json()
+        result: dict[str, Any] = response.json()
+        return result
 
-    async def post(self, path: str, data: dict) -> dict:
+    async def post(self, path: str, data: dict[str, Any]) -> dict[str, Any]:
         """Make a POST request to the PCO API."""
-        response = await self._client.post(self._url(path), json=data, headers=self._auth_headers())
+        response = await self._client.post(
+            self._url(path), json=data, headers=self._auth_headers()
+        )
         self._check_response(response)
-        return response.json()
+        result: dict[str, Any] = response.json()
+        return result
 
-    async def patch(self, path: str, data: dict) -> dict:
+    async def patch(self, path: str, data: dict[str, Any]) -> dict[str, Any]:
         """Make a PATCH request to the PCO API."""
-        response = await self._client.patch(self._url(path), json=data, headers=self._auth_headers())
+        response = await self._client.patch(
+            self._url(path), json=data, headers=self._auth_headers()
+        )
         self._check_response(response)
-        return response.json()
+        result: dict[str, Any] = response.json()
+        return result
 
-    async def get_all(self, path: str, params: dict | None = None, max_pages: int = 50) -> list:
+    async def get_all(
+        self, path: str, params: dict[str, Any] | None = None, max_pages: int = 50
+    ) -> list[Any]:
         """Fetch all pages of a paginated PCO endpoint. Returns flat list of data items."""
-        all_data: list = []
-        current_params = dict(params or {})
+        all_data: list[Any] = []
+        current_params: dict[str, Any] = dict(params or {})
         for _ in range(max_pages):
             result = await self.get(path, params=current_params)
             all_data.extend(result.get("data", []))
@@ -94,10 +107,11 @@ class PCOClient:
     def _extract_error_detail(self, response: httpx.Response) -> str:
         """Extract error detail from a PCO error response."""
         try:
-            body = response.json()
+            body: dict[str, Any] = response.json()
             errors = body.get("errors", [])
             if errors:
-                return errors[0].get("detail", "Unknown error")
-        except Exception:
+                detail: str = errors[0].get("detail", "Unknown error")
+                return detail
+        except Exception:  # noqa: S110
             pass
         return f"HTTP {response.status_code}"

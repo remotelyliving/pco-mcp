@@ -1,9 +1,8 @@
-import json
 
 import httpx
 import pytest
 
-from pco_mcp.pco.client import PCOClient, PCOAPIError, PCORateLimitError
+from pco_mcp.pco.client import PCOAPIError, PCOClient, PCORateLimitError
 
 
 @pytest.fixture

@@ -1,3 +1,5 @@
+from typing import Any
+
 from pco_mcp.pco.client import PCOClient
 
 
@@ -7,12 +9,12 @@ class ServicesAPI:
     def __init__(self, client: PCOClient) -> None:
         self._client = client
 
-    async def list_service_types(self) -> list[dict]:
+    async def list_service_types(self) -> list[dict[str, Any]]:
         """List all service types."""
         result = await self._client.get("/services/v2/service_types")
         return [self._simplify_service_type(st) for st in result.get("data", [])]
 
-    async def get_upcoming_plans(self, service_type_id: str) -> list[dict]:
+    async def get_upcoming_plans(self, service_type_id: str) -> list[dict[str, Any]]:
         """Get upcoming plans for a service type."""
         result = await self._client.get(
             f"/services/v2/service_types/{service_type_id}/plans",
@@ -20,22 +22,22 @@ class ServicesAPI:
         )
         return [self._simplify_plan(p) for p in result.get("data", [])]
 
-    async def get_plan_details(self, service_type_id: str, plan_id: str) -> dict:
+    async def get_plan_details(self, service_type_id: str, plan_id: str) -> dict[str, Any]:
         """Get full details for a specific plan."""
         result = await self._client.get(
             f"/services/v2/service_types/{service_type_id}/plans/{plan_id}"
         )
         return self._simplify_plan(result["data"])
 
-    async def list_songs(self, query: str | None = None) -> list[dict]:
+    async def list_songs(self, query: str | None = None) -> list[dict[str, Any]]:
         """List/search songs in the library."""
-        params: dict = {}
+        params: dict[str, Any] = {}
         if query:
             params["where[title]"] = query
         result = await self._client.get("/services/v2/songs", params=params)
         return [self._simplify_song(s) for s in result.get("data", [])]
 
-    async def list_team_members(self, service_type_id: str, plan_id: str) -> list[dict]:
+    async def list_team_members(self, service_type_id: str, plan_id: str) -> list[dict[str, Any]]:
         """List team members for a plan."""
         result = await self._client.get(
             f"/services/v2/service_types/{service_type_id}/plans/{plan_id}/team_members"
@@ -44,9 +46,9 @@ class ServicesAPI:
 
     async def schedule_team_member(
         self, service_type_id: str, plan_id: str, person_id: str, team_position_name: str
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Schedule a person to a team position in a plan."""
-        payload = {
+        payload: dict[str, Any] = {
             "data": {
                 "type": "PlanPerson",
                 "attributes": {
@@ -61,7 +63,7 @@ class ServicesAPI:
         )
         return self._simplify_team_member(result["data"])
 
-    def _simplify_service_type(self, raw: dict) -> dict:
+    def _simplify_service_type(self, raw: dict[str, Any]) -> dict[str, Any]:
         attrs = raw.get("attributes", {})
         return {
             "id": raw["id"],
@@ -70,7 +72,7 @@ class ServicesAPI:
             "last_plan_from": attrs.get("last_plan_from"),
         }
 
-    def _simplify_plan(self, raw: dict) -> dict:
+    def _simplify_plan(self, raw: dict[str, Any]) -> dict[str, Any]:
         attrs = raw.get("attributes", {})
         return {
             "id": raw["id"],
@@ -81,7 +83,7 @@ class ServicesAPI:
             "needed_positions_count": attrs.get("needed_positions_count", 0),
         }
 
-    def _simplify_song(self, raw: dict) -> dict:
+    def _simplify_song(self, raw: dict[str, Any]) -> dict[str, Any]:
         attrs = raw.get("attributes", {})
         return {
             "id": raw["id"],
@@ -91,7 +93,7 @@ class ServicesAPI:
             "last_scheduled_at": attrs.get("last_scheduled_at"),
         }
 
-    def _simplify_team_member(self, raw: dict) -> dict:
+    def _simplify_team_member(self, raw: dict[str, Any]) -> dict[str, Any]:
         attrs = raw.get("attributes", {})
         return {
             "id": raw["id"],

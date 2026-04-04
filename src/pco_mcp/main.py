@@ -1,4 +1,5 @@
 # src/pco_mcp/main.py
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -42,7 +43,7 @@ def create_app() -> FastAPI:
     )
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI):
+    async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         async with mcp_app.lifespan(mcp_app):
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
@@ -52,13 +53,13 @@ def create_app() -> FastAPI:
     app = FastAPI(title="pco-mcp", lifespan=lifespan)
 
     @app.get("/health")
-    async def health():
+    async def health() -> JSONResponse:
         return JSONResponse({"status": "healthy"})
 
     app.include_router(oauth_router, prefix="/oauth")
 
     # Web routes (Task 14)
-    from pco_mcp.web.routes import router as web_router
+    from pco_mcp.web.routes import router as web_router  # noqa: PLC0415
     app.include_router(web_router)
 
     app.mount("/mcp", mcp_app)

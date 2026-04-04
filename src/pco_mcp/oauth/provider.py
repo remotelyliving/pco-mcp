@@ -1,17 +1,18 @@
 import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from fastapi import APIRouter, Form, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-_registered_clients: dict[str, dict] = {}
-_pending_auth_codes: dict[str, dict] = {}
+_registered_clients: dict[str, dict[str, Any]] = {}
+_pending_auth_codes: dict[str, dict[str, Any]] = {}
 
 
 def create_oauth_router(
-    session_factory: async_sessionmaker,
+    session_factory: async_sessionmaker[AsyncSession],
     pco_client_id: str,
     pco_client_secret: str,
     base_url: str,
@@ -95,9 +96,10 @@ def create_oauth_router(
             redirect_uri=f"{base_url}/oauth/pco-callback",
         )
 
-        from pco_mcp.crypto import encrypt_token
-        from pco_mcp.models import User
         from sqlalchemy import select
+
+        from pco_mcp.crypto import encrypt_token  # noqa: PLC0415
+        from pco_mcp.models import User  # noqa: PLC0415
 
         async with session_factory() as db:
             from pco_mcp.oauth.pco_client import get_pco_me
@@ -170,8 +172,9 @@ def create_oauth_router(
             new_refresh_token = secrets.token_urlsafe(48)
             token_hash = hashlib.sha256(access_token.encode()).hexdigest()
 
-            from pco_mcp.models import OAuthSession
             import uuid
+
+            from pco_mcp.models import OAuthSession
 
             async with session_factory() as db:
                 session = OAuthSession(

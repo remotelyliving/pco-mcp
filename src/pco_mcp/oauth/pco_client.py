@@ -1,6 +1,8 @@
+from typing import Any
+
 import httpx
 
-PCO_TOKEN_URL = "https://api.planningcenteronline.com/oauth/token"
+PCO_TOKEN_URL = "https://api.planningcenteronline.com/oauth/token"  # noqa: S105
 PCO_ME_URL = "https://api.planningcenteronline.com/me"
 
 
@@ -10,7 +12,7 @@ async def exchange_pco_code(
     client_secret: str,
     redirect_uri: str,
     http_client: httpx.AsyncClient | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Exchange a PCO authorization code for access + refresh tokens."""
     client = http_client or httpx.AsyncClient()
     try:
@@ -26,7 +28,8 @@ async def exchange_pco_code(
         )
         if not resp.is_success:
             raise Exception(f"PCO token exchange failed: {resp.status_code} {resp.text}")
-        return resp.json()
+        result: dict[str, Any] = resp.json()
+        return result
     finally:
         if http_client is None:
             await client.aclose()
@@ -35,7 +38,7 @@ async def exchange_pco_code(
 async def get_pco_me(
     access_token: str,
     http_client: httpx.AsyncClient | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Get the current user's PCO person ID and org info."""
     client = http_client or httpx.AsyncClient()
     try:
@@ -45,7 +48,7 @@ async def get_pco_me(
         )
         if not resp.is_success:
             raise Exception(f"PCO /me request failed: {resp.status_code}")
-        body = resp.json()
+        body: dict[str, Any] = resp.json()
         data = body["data"]
         meta = body.get("meta", {})
         parent = meta.get("parent", {})
@@ -66,7 +69,7 @@ async def refresh_pco_token(
     client_id: str,
     client_secret: str,
     http_client: httpx.AsyncClient | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Refresh a PCO access token using a refresh token."""
     client = http_client or httpx.AsyncClient()
     try:
@@ -81,7 +84,8 @@ async def refresh_pco_token(
         )
         if not resp.is_success:
             raise Exception(f"PCO token refresh failed: {resp.status_code}")
-        return resp.json()
+        result: dict[str, Any] = resp.json()
+        return result
     finally:
         if http_client is None:
             await client.aclose()

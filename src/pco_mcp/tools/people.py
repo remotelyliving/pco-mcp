@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastmcp import FastMCP
 
 READ_ANNOTATIONS = {"readOnlyHint": True, "openWorldHint": True}
@@ -12,7 +14,7 @@ def register_people_tools(mcp: FastMCP) -> None:
         name: str | None = None,
         email: str | None = None,
         phone: str | None = None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Search for people in Planning Center by name, email, or phone number.
 
         Returns a list of matching people with their basic info (name, email, phone,
@@ -24,7 +26,7 @@ def register_people_tools(mcp: FastMCP) -> None:
         return await api.search_people(name=name, email=email, phone=phone)
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def get_person(person_id: str) -> dict:
+    async def get_person(person_id: str) -> dict[str, Any]:
         """Get full details for a specific person by their Planning Center ID.
 
         Returns detailed info including name, email, phone, membership, status,
@@ -36,7 +38,7 @@ def register_people_tools(mcp: FastMCP) -> None:
         return await api.get_person(person_id)
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def list_lists() -> list[dict]:
+    async def list_lists() -> list[dict[str, Any]]:
         """Get all lists (smart groups, tags) from Planning Center People.
 
         Returns each list's name, description, and member count.
@@ -47,7 +49,7 @@ def register_people_tools(mcp: FastMCP) -> None:
         return await api.list_lists()
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def get_list_members(list_id: str) -> list[dict]:
+    async def get_list_members(list_id: str) -> list[dict[str, Any]]:
         """Get all people in a specific Planning Center list.
 
         Provide the list ID (from list_lists). Returns people with basic info.
@@ -62,7 +64,7 @@ def register_people_tools(mcp: FastMCP) -> None:
         first_name: str,
         last_name: str,
         email: str | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Create a new person in Planning Center.
 
         Requires first and last name. Email is optional. Returns the created person record.
@@ -78,7 +80,7 @@ def register_people_tools(mcp: FastMCP) -> None:
         first_name: str | None = None,
         last_name: str | None = None,
         email: str | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Update an existing person's information in Planning Center.
 
         Provide the person ID and any fields to change. Only provided fields are updated.
