@@ -1,0 +1,50 @@
+services:
+  app:
+    build: .
+    container_name: pco-mcp
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://pco:${POSTGRES_PASSWORD}@db:5432/pco_mcp
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal
+      - homelab-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  db:
+    image: postgres:16-alpine
+    container_name: pco-mcp-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pco
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: pco_mcp
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pco -d pco_mcp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+
+networks:
+  internal:
+    driver: bridge
+  homelab-net:
+    external: true
