@@ -3,7 +3,7 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastmcp import FastMCP
 from sqlalchemy import text
@@ -42,18 +42,28 @@ def create_app() -> FastAPI:
 
     mcp_app = mcp.http_app(path="/")
 
+    from pathlib import Path  # noqa: PLC0415
+
+    from fastapi.templating import Jinja2Templates  # noqa: PLC0415
+
+    _template_dir = Path(__file__).parent / "web" / "templates"
+    _templates = Jinja2Templates(directory=str(_template_dir))
+
     oauth_router = create_oauth_router(
         session_factory=session_factory,
         pco_client_id=settings.pco_client_id,
         pco_client_secret=settings.pco_client_secret,
         base_url=settings.base_url,
         token_encryption_key=settings.token_encryption_key,
+        templates=_templates,
     )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("pco-mcp starting up (base_url=%s)", settings.base_url)
         async with mcp_app.lifespan(mcp_app):
+            # In production, run `alembic upgrade head` instead.
+            # create_all is kept for development with SQLite.
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
             logger.info("Database schema ready")
@@ -62,6 +72,14 @@ def create_app() -> FastAPI:
             logger.info("pco-mcp shut down")
 
     app = FastAPI(title="pco-mcp", lifespan=lifespan)
+
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
 
     @app.get("/health")
     async def health() -> JSONResponse:
