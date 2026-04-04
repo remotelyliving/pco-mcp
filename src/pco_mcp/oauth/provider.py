@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -7,8 +8,42 @@ from fastapi import APIRouter, Form, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+logger = logging.getLogger(__name__)
+
 _registered_clients: dict[str, dict[str, Any]] = {}
 _pending_auth_codes: dict[str, dict[str, Any]] = {}
+
+
+def create_direct_auth_state(pco_client_id: str, base_url: str) -> str:
+    """Create a pending state entry for the direct (non-ChatGPT) OAuth flow.
+
+    Returns the PCO OAuth authorize URL to redirect the user to.
+    """
+    internal_state = secrets.token_urlsafe(32)
+    _pending_auth_codes[internal_state] = {
+        "flow": "direct",
+    }
+    pco_auth_url = (
+        f"https://api.planningcenteronline.com/oauth/authorize"
+        f"?client_id={pco_client_id}"
+        f"&redirect_uri={base_url}/oauth/pco-callback"
+        f"&response_type=code"
+        f"&scope=people+services"
+        f"&state={internal_state}"
+    )
+    return pco_auth_url
+
+
+def redeem_dashboard_token(token: str) -> dict[str, Any] | None:
+    """Exchange a short-lived dashboard token for user info.
+
+    Returns the payload dict if valid, or None if invalid/expired.
+    Consumes the token (single-use).
+    """
+    entry = _pending_auth_codes.pop(token, None)
+    if entry and entry.get("type") == "dashboard_token":
+        return entry
+    return None
 
 
 def create_oauth_router(
@@ -34,6 +69,7 @@ def create_oauth_router(
             "client_secret": client_secret,
             "redirect_uris": redirect_uris,
         }
+        logger.info("Client registered (client_id=%s, redirect_uris=%s)", client_id, redirect_uris)
         return JSONResponse(
             content={
                 "client_id": client_id,
@@ -70,6 +106,11 @@ def create_oauth_router(
             f"&scope=people+services"
             f"&state={internal_state}"
         )
+        logger.info(
+            "Authorization redirect initiated (client_id=%s, internal_state=%s)",
+            client_id,
+            internal_state,
+        )
         return RedirectResponse(url=pco_auth_url)
 
     @router.get("/pco-callback")
@@ -80,10 +121,12 @@ def create_oauth_router(
     ) -> RedirectResponse:
         """Handle PCO OAuth callback, exchange code, issue our own code to ChatGPT."""
         if error:
+            logger.error("PCO OAuth callback error (state=%s, error=%s)", state, error)
             raise HTTPException(status_code=400, detail=f"PCO auth error: {error}")
 
         pending = _pending_auth_codes.pop(state, None)
         if not pending:
+            logger.warning("Invalid or expired OAuth state received (state=%s)", state)
             raise HTTPException(status_code=400, detail="Invalid or expired state")
 
         from pco_mcp.oauth.pco_client import exchange_pco_code
@@ -137,6 +180,18 @@ def create_oauth_router(
             await db.commit()
             await db.refresh(user)
 
+        # Direct flow: redirect to dashboard with a short-lived token
+        if pending.get("flow") == "direct":
+            dashboard_token = secrets.token_urlsafe(32)
+            _pending_auth_codes[dashboard_token] = {
+                "user_id": str(user.id),
+                "org_name": user.pco_org_name,
+                "type": "dashboard_token",
+            }
+            logger.info("Direct flow: redirecting user %s to dashboard", user.id)
+            return RedirectResponse(url=f"{base_url}/dashboard?token={dashboard_token}")
+
+        # ChatGPT flow: issue auth code and redirect back to ChatGPT
         our_code = secrets.token_urlsafe(48)
         _pending_auth_codes[our_code] = {
             "user_id": str(user.id),
@@ -144,6 +199,11 @@ def create_oauth_router(
             "code_challenge": pending["code_challenge"],
             "type": "auth_code",
         }
+        logger.info(
+            "PCO callback complete — auth code issued (user_id=%s, org=%s)",
+            user.id,
+            user.pco_org_name,
+        )
 
         redirect = (
             f"{pending['chatgpt_redirect_uri']}"
@@ -165,6 +225,7 @@ def create_oauth_router(
         if grant_type == "authorization_code":
             pending = _pending_auth_codes.pop(code, None)
             if not pending or pending.get("type") != "auth_code":
+                logger.warning("Invalid authorization code presented at /token")
                 raise HTTPException(status_code=400, detail="Invalid authorization code")
 
             access_token = secrets.token_urlsafe(48)
@@ -184,6 +245,11 @@ def create_oauth_router(
                 db.add(session)
                 await db.commit()
 
+            logger.info(
+                "Access token issued (user_id=%s, client_id=%s)",
+                pending["user_id"],
+                pending["chatgpt_client_id"],
+            )
             return JSONResponse(
                 content={
                     "access_token": access_token,
@@ -203,6 +269,7 @@ def create_oauth_router(
                 }
             )
 
+        logger.warning("Unsupported grant_type received: %s", grant_type)
         raise HTTPException(status_code=400, detail=f"Unsupported grant_type: {grant_type}")
 
     return router
