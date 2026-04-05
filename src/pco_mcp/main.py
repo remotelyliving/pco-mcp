@@ -141,6 +141,7 @@ def create_app() -> FastAPI:
         pco_client_id=settings.pco_client_id,
         pco_client_secret=settings.pco_client_secret,
         pco_api_base=settings.pco_api_base,
+        base_url=settings.base_url,
     )
     app.mount("/mcp", wrapped_mcp)
 

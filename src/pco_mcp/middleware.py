@@ -47,6 +47,7 @@ class BearerTokenMiddleware:
         pco_client_secret: str,
         pco_api_base: str = "https://api.planningcenteronline.com",
         mcp_path_prefix: str = "/mcp",
+        base_url: str = "",
     ) -> None:
         self._app = app
         self._session_factory = session_factory
@@ -55,6 +56,7 @@ class BearerTokenMiddleware:
         self._pco_client_secret = pco_client_secret
         self._pco_api_base = pco_api_base
         self._mcp_path_prefix = mcp_path_prefix
+        self._base_url = base_url.rstrip("/")
 
     async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
         # Only intercept HTTP requests targeting the MCP prefix
@@ -173,18 +175,27 @@ class BearerTokenMiddleware:
         logger.debug("PCO client set for user_id=%s", user.id)
         return None
 
-    @staticmethod
-    async def _send_error(send: Any, status: int, message: str) -> None:
-        """Send a JSON error response through the ASGI send callable."""
+    async def _send_error(self, send: Any, status: int, message: str) -> None:
+        """Send a JSON error response through the ASGI send callable.
+
+        For 401 responses, includes a WWW-Authenticate header per RFC 9728
+        pointing to the protected-resource metadata endpoint. This lets
+        OAuth clients (like ChatGPT) discover the authorization server.
+        """
         body = json.dumps({"error": message}).encode()
+        headers: list[list[bytes]] = [
+            [b"content-type", b"application/json"],
+            [b"content-length", str(len(body)).encode()],
+        ]
+        if status == 401 and self._base_url:
+            metadata_url = f"{self._base_url}/.well-known/oauth-protected-resource/mcp"
+            www_auth = f'Bearer resource_metadata="{metadata_url}"'
+            headers.append([b"www-authenticate", www_auth.encode()])
         await send(
             {
                 "type": "http.response.start",
                 "status": status,
-                "headers": [
-                    [b"content-type", b"application/json"],
-                    [b"content-length", str(len(body)).encode()],
-                ],
+                "headers": headers,
             }
         )
         await send({"type": "http.response.body", "body": body, "more_body": False})
