@@ -4,6 +4,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastmcp import FastMCP
 from sqlalchemy import text
@@ -72,6 +73,20 @@ def create_app() -> FastAPI:
             logger.info("pco-mcp shut down")
 
     app = FastAPI(title="pco-mcp", lifespan=lifespan)
+
+    # CORS — required so browser-based MCP clients (ChatGPT, Claude.ai) can
+    # complete Dynamic Client Registration and the OAuth flow. Metadata
+    # endpoints and the DCR endpoint are designed to be publicly readable
+    # (no cookies, bearer tokens set explicitly), so "*" is safe here.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["*"],
+        expose_headers=["WWW-Authenticate"],
+        max_age=3600,
+    )
 
     @app.middleware("http")
     async def add_security_headers(request: Request, call_next):

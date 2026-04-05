@@ -66,25 +66,40 @@ def create_oauth_router(
         if not redirect_uris:
             raise HTTPException(status_code=400, detail="redirect_uris required")
 
+        # Honor the client's requested auth method if supported.
+        # ChatGPT registers with "none" (public client + PKCE).
+        supported_auth_methods = {"client_secret_post", "client_secret_basic", "none"}
+        requested_auth_method = body.get("token_endpoint_auth_method", "client_secret_post")
+        if requested_auth_method not in supported_auth_methods:
+            requested_auth_method = "client_secret_post"
+
         client_id = secrets.token_urlsafe(32)
-        client_secret = secrets.token_urlsafe(48)
+        # Per RFC 7591, public clients (auth_method="none") do not receive a client_secret
+        client_secret: str | None = (
+            None if requested_auth_method == "none" else secrets.token_urlsafe(48)
+        )
         now_ts = int(datetime.now(UTC).timestamp())
         _registered_clients[client_id] = {
             "client_secret": client_secret,
             "redirect_uris": redirect_uris,
+            "token_endpoint_auth_method": requested_auth_method,
         }
-        logger.info("Client registered (client_id=%s, redirect_uris=%s)", client_id, redirect_uris)
+        logger.info(
+            "Client registered (client_id=%s, auth_method=%s, redirect_uris=%s)",
+            client_id, requested_auth_method, redirect_uris,
+        )
         # RFC 7591 Section 3.2.1 response format
         response_body: dict[str, Any] = {
             "client_id": client_id,
-            "client_secret": client_secret,
             "client_id_issued_at": now_ts,
-            "client_secret_expires_at": 0,  # 0 = never expires
             "redirect_uris": redirect_uris,
-            "token_endpoint_auth_method": "client_secret_post",
-            "grant_types": ["authorization_code", "refresh_token"],
-            "response_types": ["code"],
+            "token_endpoint_auth_method": requested_auth_method,
+            "grant_types": body.get("grant_types", ["authorization_code", "refresh_token"]),
+            "response_types": body.get("response_types", ["code"]),
         }
+        if client_secret is not None:
+            response_body["client_secret"] = client_secret
+            response_body["client_secret_expires_at"] = 0  # never expires
         # Echo back optional metadata the client supplied
         for field in ("client_name", "client_uri", "logo_uri", "scope", "contacts",
                       "tos_uri", "policy_uri", "software_id", "software_version"):
@@ -264,8 +279,12 @@ def create_oauth_router(
             registered = _registered_clients.get(client_id)
             if registered is None:
                 raise HTTPException(status_code=401, detail="Unknown client_id")
-            if not secrets.compare_digest(client_secret, registered["client_secret"]):
-                raise HTTPException(status_code=401, detail="Invalid client_secret")
+            # Public clients (auth_method="none") don't have a client_secret.
+            # They rely on PKCE for security, which is verified below.
+            stored_secret = registered.get("client_secret")
+            if stored_secret is not None:
+                if not secrets.compare_digest(client_secret, stored_secret):
+                    raise HTTPException(status_code=401, detail="Invalid client_secret")
 
             pending = _pending_auth_codes.pop(code, None)
             if not pending or pending.get("type") != "auth_code":
