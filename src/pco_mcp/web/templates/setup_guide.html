@@ -3,26 +3,56 @@
 {% block content %}
 <section>
     <h1>Add Planning Center to ChatGPT</h1>
+    <p>
+        <strong>Heads up:</strong> Because this is a custom connector, you'll need to turn on ChatGPT's
+        Developer mode first. Available on ChatGPT Plus, Pro, Business, Enterprise, and Edu plans.
+    </p>
     <ol>
         <li>
             <h3>Open ChatGPT Settings</h3>
-            <p>In ChatGPT, click your profile icon, then "Settings".</p>
+            <p>Click your profile icon in ChatGPT, then choose <strong>Settings</strong>.</p>
         </li>
         <li>
             <h3>Go to Apps</h3>
-            <p>Click "Apps" in the left sidebar.</p>
+            <p>Click <strong>Apps</strong> in the left sidebar.</p>
         </li>
         <li>
-            <h3>Create a new App</h3>
-            <p>Click "Create" and give it a name like "Planning Center".</p>
+            <h3>Open Advanced settings</h3>
+            <p>Click <strong>Advanced settings</strong> (near the bottom).</p>
         </li>
         <li>
-            <h3>Paste your MCP URL</h3>
-            <p>Paste the URL from your dashboard into the URL field.</p>
+            <h3>Turn on Developer mode</h3>
+            <p>
+                Toggle <strong>Developer mode</strong> on. This lets you add custom connectors like
+                Planning Center. (ChatGPT will warn you about "elevated risk" — that's expected for
+                any custom connector.)
+            </p>
         </li>
         <li>
-            <h3>Done!</h3>
-            <p>Start a new chat and ask ChatGPT about your Planning Center data.</p>
+            <h3>Click "Create app"</h3>
+            <p>Go back to the Apps screen and click <strong>Create app</strong>.</p>
+        </li>
+        <li>
+            <h3>Fill in the details</h3>
+            <ul>
+                <li><strong>Name:</strong> Planning Center</li>
+                <li><strong>MCP Server URL:</strong> paste the connection link from your dashboard</li>
+                <li><strong>Authentication:</strong> select <strong>OAuth</strong></li>
+            </ul>
+        </li>
+        <li>
+            <h3>Authorize Planning Center</h3>
+            <p>
+                ChatGPT will send you to Planning Center's login page. Sign in and click
+                <strong>Authorize</strong>. You'll land back in ChatGPT with Planning Center connected.
+            </p>
+        </li>
+        <li>
+            <h3>Start using it</h3>
+            <p>
+                Open a new chat and turn on the Planning Center app from the chat's tool menu.
+                Then ask ChatGPT anything about your church data.
+            </p>
         </li>
     </ol>
     <h2>Example questions you can ask</h2>
