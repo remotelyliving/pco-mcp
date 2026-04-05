@@ -90,6 +90,46 @@ def create_app() -> FastAPI:
             return JSONResponse({"status": "unhealthy", "db": "error"}, status_code=503)
         return JSONResponse({"status": "healthy"})
 
+    # OAuth 2.1 Authorization Server Metadata (RFC 8414)
+    # ChatGPT queries these to discover authorize/token/register endpoints.
+    def _auth_server_metadata() -> dict:
+        return {
+            "issuer": settings.base_url,
+            "authorization_endpoint": f"{settings.base_url}/oauth/authorize",
+            "token_endpoint": f"{settings.base_url}/oauth/token",
+            "registration_endpoint": f"{settings.base_url}/oauth/register",
+            "response_types_supported": ["code"],
+            "grant_types_supported": ["authorization_code", "refresh_token"],
+            "token_endpoint_auth_methods_supported": [
+                "client_secret_post",
+                "client_secret_basic",
+                "none",
+            ],
+            "code_challenge_methods_supported": ["S256"],
+            "scopes_supported": ["people", "services"],
+        }
+
+    # Protected Resource Metadata (RFC 9728)
+    def _protected_resource_metadata() -> dict:
+        return {
+            "resource": f"{settings.base_url}/mcp",
+            "authorization_servers": [settings.base_url],
+            "bearer_methods_supported": ["header"],
+            "scopes_supported": ["people", "services"],
+        }
+
+    @app.get("/.well-known/oauth-authorization-server")
+    @app.get("/.well-known/oauth-authorization-server/mcp")
+    @app.get("/.well-known/openid-configuration")
+    @app.get("/.well-known/openid-configuration/mcp")
+    async def oauth_metadata() -> JSONResponse:
+        return JSONResponse(_auth_server_metadata())
+
+    @app.get("/.well-known/oauth-protected-resource")
+    @app.get("/.well-known/oauth-protected-resource/mcp")
+    async def protected_resource_metadata() -> JSONResponse:
+        return JSONResponse(_protected_resource_metadata())
+
     app.include_router(oauth_router, prefix="/oauth")
 
     # Web routes (Task 14)
