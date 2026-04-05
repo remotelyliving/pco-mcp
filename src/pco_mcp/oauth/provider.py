@@ -68,19 +68,29 @@ def create_oauth_router(
 
         client_id = secrets.token_urlsafe(32)
         client_secret = secrets.token_urlsafe(48)
+        now_ts = int(datetime.now(UTC).timestamp())
         _registered_clients[client_id] = {
             "client_secret": client_secret,
             "redirect_uris": redirect_uris,
         }
         logger.info("Client registered (client_id=%s, redirect_uris=%s)", client_id, redirect_uris)
-        return JSONResponse(
-            content={
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "redirect_uris": redirect_uris,
-            },
-            status_code=201,
-        )
+        # RFC 7591 Section 3.2.1 response format
+        response_body: dict[str, Any] = {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "client_id_issued_at": now_ts,
+            "client_secret_expires_at": 0,  # 0 = never expires
+            "redirect_uris": redirect_uris,
+            "token_endpoint_auth_method": "client_secret_post",
+            "grant_types": ["authorization_code", "refresh_token"],
+            "response_types": ["code"],
+        }
+        # Echo back optional metadata the client supplied
+        for field in ("client_name", "client_uri", "logo_uri", "scope", "contacts",
+                      "tos_uri", "policy_uri", "software_id", "software_version"):
+            if field in body:
+                response_body[field] = body[field]
+        return JSONResponse(content=response_body, status_code=201)
 
     @router.get("/authorize")
     async def authorize(
