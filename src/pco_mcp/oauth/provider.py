@@ -61,9 +61,16 @@ def create_oauth_router(
     @router.post("/register", status_code=201)
     async def register_client(request: Request) -> JSONResponse:
         """Dynamic Client Registration (RFC 7591) for ChatGPT."""
-        body = await request.json()
+        try:
+            body = await request.json()
+        except Exception as exc:
+            raw = (await request.body()).decode("utf-8", errors="replace")[:500]
+            logger.warning("DCR: failed to parse JSON body (%s): %r", exc, raw)
+            raise HTTPException(status_code=400, detail="Invalid JSON body") from exc
+        logger.info("DCR request received: %s", body)
         redirect_uris = body.get("redirect_uris")
         if not redirect_uris:
+            logger.warning("DCR: redirect_uris missing in body: %s", body)
             raise HTTPException(status_code=400, detail="redirect_uris required")
 
         # Honor the client's requested auth method if supported.
