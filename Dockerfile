@@ -2,17 +2,13 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install dependencies first (cached layer)
+# Copy source first so setuptools can find the src/ directory
 COPY pyproject.toml .
-RUN pip install --no-cache-dir .
-
-# Copy source (changes more often)
 COPY src/ src/
 COPY alembic.ini .
 COPY alembic/ alembic/
 
-# Re-install in case src changed entry points
-RUN pip install --no-cache-dir --no-deps .
+RUN pip install --no-cache-dir .
 
 EXPOSE 8000
 
