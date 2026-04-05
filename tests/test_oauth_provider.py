@@ -59,9 +59,14 @@ class TestDynamicClientRegistration:
         assert "client_id" in body
         assert "client_secret" in body
 
-    def test_register_requires_redirect_uris(self, client) -> None:
+    def test_register_accepts_empty_body(self, client) -> None:
+        # Be lenient: ChatGPT may probe DCR with minimal payloads to verify
+        # the endpoint exists before sending the real registration.
         resp = client.post("/oauth/register", json={})
-        assert resp.status_code == 422 or resp.status_code == 400
+        assert resp.status_code == 201
+        body = resp.json()
+        assert "client_id" in body
+        assert body["redirect_uris"] == []
 
 
 class TestAuthorizeEndpoint:

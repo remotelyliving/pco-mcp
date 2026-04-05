@@ -139,15 +139,15 @@ def create_app() -> FastAPI:
             "scopes_supported": ["people", "services"],
         }
 
-    @app.get("/.well-known/oauth-authorization-server")
-    @app.get("/.well-known/oauth-authorization-server/mcp")
-    @app.get("/.well-known/openid-configuration")
-    @app.get("/.well-known/openid-configuration/mcp")
+    @app.api_route("/.well-known/oauth-authorization-server", methods=["GET", "HEAD"])
+    @app.api_route("/.well-known/oauth-authorization-server/mcp", methods=["GET", "HEAD"])
+    @app.api_route("/.well-known/openid-configuration", methods=["GET", "HEAD"])
+    @app.api_route("/.well-known/openid-configuration/mcp", methods=["GET", "HEAD"])
     async def oauth_metadata() -> JSONResponse:
         return JSONResponse(_auth_server_metadata())
 
-    @app.get("/.well-known/oauth-protected-resource")
-    @app.get("/.well-known/oauth-protected-resource/mcp")
+    @app.api_route("/.well-known/oauth-protected-resource", methods=["GET", "HEAD"])
+    @app.api_route("/.well-known/oauth-protected-resource/mcp", methods=["GET", "HEAD"])
     async def protected_resource_metadata() -> JSONResponse:
         return JSONResponse(_protected_resource_metadata())
 
