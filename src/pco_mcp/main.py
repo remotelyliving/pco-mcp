@@ -128,6 +128,9 @@ def create_app() -> FastAPI:
             "id_token_signing_alg_values_supported": ["RS256"],
             "service_documentation": f"{settings.base_url}/setup-guide",
             "ui_locales_supported": ["en-US"],
+            "client_id_metadata_document_supported": False,
+            "require_pushed_authorization_requests": False,
+            "require_request_uri_registration": False,
         }
 
     # Protected Resource Metadata (RFC 9728)

@@ -189,7 +189,13 @@ class BearerTokenMiddleware:
         ]
         if status == 401 and self._base_url:
             metadata_url = f"{self._base_url}/.well-known/oauth-protected-resource/mcp"
-            www_auth = f'Bearer resource_metadata="{metadata_url}"'
+            # RFC 6750 + MCP spec: include scope in WWW-Authenticate so clients
+            # can discover required scopes on the initial unauthenticated request.
+            www_auth = (
+                f'Bearer realm="pco-mcp", '
+                f'resource_metadata="{metadata_url}", '
+                f'scope="people services"'
+            )
             headers.append([b"www-authenticate", www_auth.encode()])
         await send(
             {
