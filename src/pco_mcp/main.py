@@ -113,7 +113,9 @@ def create_app() -> FastAPI:
             "authorization_endpoint": f"{settings.base_url}/oauth/authorize",
             "token_endpoint": f"{settings.base_url}/oauth/token",
             "registration_endpoint": f"{settings.base_url}/oauth/register",
+            "jwks_uri": f"{settings.base_url}/.well-known/jwks.json",
             "response_types_supported": ["code"],
+            "response_modes_supported": ["query"],
             "grant_types_supported": ["authorization_code", "refresh_token"],
             "token_endpoint_auth_methods_supported": [
                 "client_secret_post",
@@ -122,6 +124,10 @@ def create_app() -> FastAPI:
             ],
             "code_challenge_methods_supported": ["S256"],
             "scopes_supported": ["people", "services"],
+            "subject_types_supported": ["public"],
+            "id_token_signing_alg_values_supported": ["RS256"],
+            "service_documentation": f"{settings.base_url}/setup-guide",
+            "ui_locales_supported": ["en-US"],
         }
 
     # Protected Resource Metadata (RFC 9728)
@@ -135,6 +141,8 @@ def create_app() -> FastAPI:
 
     @app.get("/.well-known/oauth-authorization-server")
     @app.get("/.well-known/oauth-authorization-server/mcp")
+    @app.get("/.well-known/openid-configuration")
+    @app.get("/.well-known/openid-configuration/mcp")
     async def oauth_metadata() -> JSONResponse:
         return JSONResponse(_auth_server_metadata())
 
@@ -142,6 +150,12 @@ def create_app() -> FastAPI:
     @app.get("/.well-known/oauth-protected-resource/mcp")
     async def protected_resource_metadata() -> JSONResponse:
         return JSONResponse(_protected_resource_metadata())
+
+    @app.get("/.well-known/jwks.json")
+    async def jwks() -> JSONResponse:
+        # We don't sign JWTs (we issue opaque bearer tokens), but some
+        # clients require this endpoint to be reachable.
+        return JSONResponse({"keys": []})
 
     app.include_router(oauth_router, prefix="/oauth")
 
