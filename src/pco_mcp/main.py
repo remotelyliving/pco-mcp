@@ -75,16 +75,16 @@ def create_app() -> FastAPI:
     app = FastAPI(title="pco-mcp", lifespan=lifespan)
 
     # CORS — required so browser-based MCP clients (ChatGPT, Claude.ai) can
-    # complete Dynamic Client Registration and the OAuth flow. Metadata
-    # endpoints and the DCR endpoint are designed to be publicly readable
-    # (no cookies, bearer tokens set explicitly), so "*" is safe here.
+    # complete Dynamic Client Registration and the OAuth flow.
+    # Use regex to allow ChatGPT/Claude origins plus any explicit base_url.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=False,
+        allow_origin_regex=r"https://(chatgpt\.com|chat\.openai\.com|claude\.ai|platform\.openai\.com|cursor\.com|.*\.cursor\.sh)$",
+        allow_credentials=True,
         allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["*"],
-        expose_headers=["WWW-Authenticate"],
+        allow_headers=["Content-Type", "Authorization", "MCP-Protocol-Version",
+                       "Mcp-Session-Id", "Last-Event-ID"],
+        expose_headers=["WWW-Authenticate", "Mcp-Session-Id"],
         max_age=3600,
     )
 
