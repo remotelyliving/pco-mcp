@@ -6,7 +6,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 PCO_TOKEN_URL = "https://api.planningcenteronline.com/oauth/token"  # noqa: S105
-PCO_ME_URL = "https://api.planningcenteronline.com/me"
+PCO_ME_URL = "https://api.planningcenteronline.com/people/v2/me"
 
 
 async def exchange_pco_code(
