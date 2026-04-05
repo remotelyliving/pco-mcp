@@ -120,8 +120,6 @@ def create_app() -> FastAPI:
 
     @app.get("/.well-known/oauth-authorization-server")
     @app.get("/.well-known/oauth-authorization-server/mcp")
-    @app.get("/.well-known/openid-configuration")
-    @app.get("/.well-known/openid-configuration/mcp")
     async def oauth_metadata() -> JSONResponse:
         return JSONResponse(_auth_server_metadata())
 
