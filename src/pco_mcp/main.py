@@ -94,14 +94,18 @@ def create_app() -> FastAPI:
     # ------------------------------------------------------------------
     # OAuth Discovery (matches working reference EXACTLY)
     # ------------------------------------------------------------------
+    # Use settings.base_url (not request.base_url) because behind
+    # Cloudflare tunnel, request.base_url is http:// not https://.
+    # OAuth 2.1 requires HTTPS for all endpoints.
+    base = settings.base_url.rstrip("/")
+
     @app.get("/.well-known/oauth-authorization-server")
     async def oauth_discovery(request: Request) -> JSONResponse:
-        base_url = str(request.base_url).rstrip("/")
         return JSONResponse({
-            "issuer": base_url,
-            "authorization_endpoint": f"{base_url}/oauth/authorize",
-            "token_endpoint": f"{base_url}/oauth/token",
-            "registration_endpoint": f"{base_url}/oauth/register",
+            "issuer": base,
+            "authorization_endpoint": f"{base}/oauth/authorize",
+            "token_endpoint": f"{base}/oauth/token",
+            "registration_endpoint": f"{base}/oauth/register",
             "response_types_supported": ["code"],
             "grant_types_supported": ["authorization_code", "client_credentials"],
             "token_endpoint_auth_methods_supported": [
@@ -112,12 +116,11 @@ def create_app() -> FastAPI:
 
     @app.get("/.well-known/oauth-protected-resource")
     async def oauth_protected_resource(request: Request) -> JSONResponse:
-        base_url = str(request.base_url).rstrip("/")
         return JSONResponse({
-            "resource": base_url,
-            "authorization_servers": [base_url],
+            "resource": base,
+            "authorization_servers": [base],
             "bearer_methods_supported": ["header"],
-            "resource_documentation": base_url,
+            "resource_documentation": base,
         })
 
     # ------------------------------------------------------------------
