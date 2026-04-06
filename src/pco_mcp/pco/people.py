@@ -78,6 +78,11 @@ class PeopleAPI:
         result = await self._client.patch(f"/people/v2/people/{person_id}", data=payload)
         return self._simplify_person(result["data"])
 
+    async def get_person_blockouts(self, person_id: str) -> list[dict[str, Any]]:
+        """Get blockout dates for a person."""
+        result = await self._client.get(f"/people/v2/people/{person_id}/blockouts")
+        return [self._simplify_blockout(b) for b in result.get("data", [])]
+
     def _simplify_person(self, raw: dict[str, Any]) -> dict[str, Any]:
         """Flatten a JSON:API person record into a simple dict."""
         attrs = raw.get("attributes", {})
@@ -91,6 +96,8 @@ class PeopleAPI:
             "phone": phones[0]["number"] if phones else None,
             "membership": attrs.get("membership"),
             "status": attrs.get("status"),
+            "birthdate": attrs.get("birthdate"),
+            "gender": attrs.get("gender"),
         }
 
     def _simplify_list(self, raw: dict[str, Any]) -> dict[str, Any]:
@@ -101,4 +108,16 @@ class PeopleAPI:
             "name": attrs.get("name", ""),
             "description": attrs.get("description"),
             "total_count": attrs.get("total_count", 0),
+        }
+
+    def _simplify_blockout(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """Flatten a JSON:API blockout record."""
+        attrs = raw.get("attributes", {})
+        return {
+            "id": raw["id"],
+            "description": attrs.get("description", ""),
+            "reason": attrs.get("reason", ""),
+            "repeat_frequency": attrs.get("repeat_frequency"),
+            "starts_at": attrs.get("starts_at"),
+            "ends_at": attrs.get("ends_at"),
         }

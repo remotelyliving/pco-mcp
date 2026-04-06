@@ -21,26 +21,35 @@ def mock_client() -> PCOClient:
 
 
 class TestGetPlanDetails:
+    def _setup_get_side_effect(self, mock_client: AsyncMock) -> None:
+        """Set up mock to return plan details, empty items, and empty team members."""
+        plan_fixture = load_fixture("get_plan_details.json")
+        empty_list = {"data": []}
+        mock_client.get.side_effect = [plan_fixture, empty_list, empty_list]
+
     async def test_returns_simplified_plan(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("get_plan_details.json")
+        self._setup_get_side_effect(mock_client)
         api = ServicesAPI(mock_client)
         plan = await api.get_plan_details("201", "301")
         assert plan["id"] == "301"
         assert plan["title"] == "Easter Service"
         assert plan["dates"] == "April 20, 2026"
         assert plan["items_count"] == 12
+        assert "items" in plan
+        assert "team_members" in plan
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("get_plan_details.json")
+        self._setup_get_side_effect(mock_client)
         api = ServicesAPI(mock_client)
         await api.get_plan_details("201", "301")
-        call_path = mock_client.get.call_args.args[0]
+        # First call is the base plan endpoint
+        call_path = mock_client.get.call_args_list[0].args[0]
         assert "201" in call_path
         assert "301" in call_path
         assert "service_types" in call_path
 
     async def test_returns_needed_positions(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("get_plan_details.json")
+        self._setup_get_side_effect(mock_client)
         api = ServicesAPI(mock_client)
         plan = await api.get_plan_details("201", "301")
         assert "needed_positions_count" in plan

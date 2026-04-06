@@ -31,13 +31,14 @@ class TestListServiceTypes:
 
 class TestGetUpcomingPlans:
     async def test_returns_plans(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("get_upcoming_plans.json")
+        fixture = load_fixture("get_upcoming_plans.json")
+        mock_client.get_all.return_value = fixture["data"]
         api = ServicesAPI(mock_client)
         plans = await api.get_upcoming_plans("201")
         assert len(plans) == 1
         assert plans[0]["title"] == "Easter Service"
-        mock_client.get.assert_called_once()
-        call_path = mock_client.get.call_args.args[0]
+        mock_client.get_all.assert_called_once()
+        call_path = mock_client.get_all.call_args.args[0]
         assert "201" in call_path
 
 

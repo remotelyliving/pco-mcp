@@ -80,6 +80,13 @@ class PCOClient:
         result: dict[str, Any] = response.json()
         return result
 
+    async def delete(self, path: str) -> None:
+        """Make a DELETE request to the PCO API."""
+        url = self._url(path)
+        response = await self._client.delete(url, headers=self._auth_headers())
+        logger.debug("DELETE %s -> %s", url, response.status_code)
+        self._check_response(response)
+
     async def get_all(
         self, path: str, params: dict[str, Any] | None = None, max_pages: int = 50
     ) -> list[Any]:

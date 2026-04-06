@@ -75,21 +75,19 @@ class TestListServiceTypesToolBody:
 
 class TestGetUpcomingPlansToolBody:
     async def test_get_upcoming_plans(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
-            "data": [
-                {
-                    "type": "Plan",
-                    "id": "301",
-                    "attributes": {
-                        "title": "Easter Service",
-                        "dates": "April 20, 2026",
-                        "sort_date": "2026-04-20T09:00:00Z",
-                        "items_count": 12,
-                        "needed_positions_count": 3,
-                    },
-                }
-            ]
-        }
+        mock_client.get_all.return_value = [
+            {
+                "type": "Plan",
+                "id": "301",
+                "attributes": {
+                    "title": "Easter Service",
+                    "dates": "April 20, 2026",
+                    "sort_date": "2026-04-20T09:00:00Z",
+                    "items_count": 12,
+                    "needed_positions_count": 3,
+                },
+            }
+        ]
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "get_upcoming_plans")
         plans = await fn(service_type_id="201")
@@ -99,7 +97,7 @@ class TestGetUpcomingPlansToolBody:
 
 class TestGetPlanDetailsToolBody:
     async def test_get_plan_details(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
+        plan_response = {
             "data": {
                 "type": "Plan",
                 "id": "301",
@@ -112,11 +110,15 @@ class TestGetPlanDetailsToolBody:
                 },
             }
         }
+        empty_list = {"data": []}
+        mock_client.get.side_effect = [plan_response, empty_list, empty_list]
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "get_plan_details")
         plan = await fn(service_type_id="201", plan_id="301")
         assert plan["id"] == "301"
         assert plan["title"] == "Easter Service"
+        assert "items" in plan
+        assert "team_members" in plan
 
 
 class TestListSongsToolBody:
