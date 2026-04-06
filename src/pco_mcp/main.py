@@ -136,9 +136,26 @@ def create_app() -> FastAPI:
             return JSONResponse({"status": "unhealthy", "db": "error"}, status_code=503)
         return JSONResponse({"status": "healthy"})
 
-    # ChatGPT checks /.well-known/oauth-protected-resource at the ROOT
-    # before checking the /mcp subpath variant. FastMCP only serves the
-    # subpath variant. Add a root fallback that points to the MCP resource.
+    # ChatGPT probes multiple well-known paths. FastMCP only serves
+    # the /mcp subpath variants. Add root fallbacks so ChatGPT finds them.
+    def _as_metadata() -> dict:
+        """Authorization server metadata matching what FastMCP serves."""
+        base = settings.base_url.rstrip("/")
+        return {
+            "issuer": f"{base}/",
+            "authorization_endpoint": f"{base}/authorize",
+            "token_endpoint": f"{base}/token",
+            "registration_endpoint": f"{base}/register",
+            "scopes_supported": ["people", "services"],
+            "response_types_supported": ["code"],
+            "grant_types_supported": ["authorization_code", "refresh_token"],
+            "token_endpoint_auth_methods_supported": [
+                "client_secret_post", "client_secret_basic",
+            ],
+            "code_challenge_methods_supported": ["S256"],
+            "client_id_metadata_document_supported": False,
+        }
+
     @app.get("/.well-known/oauth-protected-resource")
     async def root_protected_resource() -> JSONResponse:
         return JSONResponse({
@@ -147,6 +164,11 @@ def create_app() -> FastAPI:
             "bearer_methods_supported": ["header"],
             "scopes_supported": ["people", "services"],
         })
+
+    @app.get("/.well-known/openid-configuration")
+    @app.get("/.well-known/openid-configuration/mcp")
+    async def root_openid_config() -> JSONResponse:
+        return JSONResponse(_as_metadata())
 
     # Web routes (landing page, setup guide, dashboard)
     from pco_mcp.web.routes import router as web_router  # noqa: PLC0415
