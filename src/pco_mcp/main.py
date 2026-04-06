@@ -1,7 +1,10 @@
 # src/pco_mcp/main.py
+import json
 import logging
+import secrets
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -69,11 +72,56 @@ def create_app() -> FastAPI:
     app = FastAPI(title="pco-mcp", lifespan=lifespan)
 
     @app.middleware("http")
-    async def add_security_headers(request: Request, call_next):
+    async def patch_dcr_response(request: Request, call_next):  # type: ignore[misc]
+        """Patch the DCR response to always include client_secret.
+
+        ChatGPT has a known quirk: it registers with token_endpoint_auth_method="none"
+        (public client) but still expects client_secret in the response. FastMCP correctly
+        omits it per RFC 7591, but that causes ChatGPT to reject with "doesn't support
+        RFC 7591 Dynamic Client Registration".
+
+        See: https://community.openai.com/t/mcp-with-oauth-dynamic-registration/1366118
+        """
         response = await call_next(request)
+        # Security headers on all responses
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+        # Patch DCR 201 responses to include client_secret if missing
+        if (
+            request.url.path.rstrip("/") == "/register"
+            and request.method == "POST"
+            and response.status_code == 201
+        ):
+            # Read the response body
+            body_bytes = b""
+            async for chunk in response.body_iterator:
+                if isinstance(chunk, str):
+                    body_bytes += chunk.encode()
+                else:
+                    body_bytes += chunk
+            try:
+                body = json.loads(body_bytes)
+                if "client_secret" not in body:
+                    body["client_secret"] = secrets.token_urlsafe(48)
+                    body["client_secret_expires_at"] = 0
+                    logger.info("Patched DCR response with client_secret for ChatGPT compat")
+                patched = json.dumps(body).encode()
+                return JSONResponse(
+                    content=body,
+                    status_code=201,
+                    headers=dict(response.headers),
+                )
+            except Exception:
+                # If we can't parse, return original
+                from starlette.responses import Response
+                return Response(
+                    content=body_bytes,
+                    status_code=response.status_code,
+                    headers=dict(response.headers),
+                    media_type=response.media_type,
+                )
         return response
 
     @app.get("/health")
