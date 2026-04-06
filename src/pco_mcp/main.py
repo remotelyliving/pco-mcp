@@ -85,6 +85,18 @@ def create_app() -> FastAPI:
             return JSONResponse({"status": "unhealthy", "db": "error"}, status_code=503)
         return JSONResponse({"status": "healthy"})
 
+    # ChatGPT checks /.well-known/oauth-protected-resource at the ROOT
+    # before checking the /mcp subpath variant. FastMCP only serves the
+    # subpath variant. Add a root fallback that points to the MCP resource.
+    @app.get("/.well-known/oauth-protected-resource")
+    async def root_protected_resource() -> JSONResponse:
+        return JSONResponse({
+            "resource": f"{settings.base_url}/mcp",
+            "authorization_servers": [f"{settings.base_url}/"],
+            "bearer_methods_supported": ["header"],
+            "scopes_supported": ["people", "services"],
+        })
+
     # Web routes (landing page, setup guide, dashboard)
     from pco_mcp.web.routes import router as web_router  # noqa: PLC0415
     app.include_router(web_router)
