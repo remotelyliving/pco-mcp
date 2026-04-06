@@ -107,12 +107,15 @@ def create_app() -> FastAPI:
                     body["client_secret"] = secrets.token_urlsafe(48)
                     body["client_secret_expires_at"] = 0
                     logger.info("Patched DCR response with client_secret for ChatGPT compat")
-                patched = json.dumps(body).encode()
-                return JSONResponse(
-                    content=body,
-                    status_code=201,
-                    headers=dict(response.headers),
-                )
+                # Build a fresh response — don't copy old headers (Content-Length mismatch)
+                patched_response = JSONResponse(content=body, status_code=201)
+                # Copy only CORS / security headers, not content-length
+                for key in ("access-control-allow-origin", "access-control-allow-credentials",
+                            "access-control-expose-headers"):
+                    val = response.headers.get(key)
+                    if val:
+                        patched_response.headers[key] = val
+                return patched_response
             except Exception:
                 # If we can't parse, return original
                 from starlette.responses import Response
