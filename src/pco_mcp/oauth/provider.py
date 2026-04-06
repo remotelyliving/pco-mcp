@@ -7,6 +7,7 @@ holds short-lived dashboard tokens consumed by the /dashboard route.
 """
 import secrets
 from typing import Any
+from urllib.parse import urlencode
 
 # Short-lived dashboard tokens (separate from the main OAuth stores)
 _pending_dashboard_tokens: dict[str, dict[str, Any]] = {}
@@ -31,14 +32,14 @@ def create_direct_auth_state(
         "type": "pending_direct_auth",
         "expires": datetime.now(UTC) + timedelta(minutes=10),
     }
-    pco_auth_url = (
-        f"https://api.planningcenteronline.com/oauth/authorize"
-        f"?client_id={pco_client_id}"
-        f"&redirect_uri={base_url.rstrip('/')}/oauth/pco-callback"
-        f"&response_type=code"
-        f"&scope=people+services"
-        f"&state={internal_state}"
-    )
+    params = {
+        "client_id": pco_client_id,
+        "redirect_uri": f"{base_url.rstrip('/')}/oauth/pco-callback",
+        "response_type": "code",
+        "scope": "people services",
+        "state": internal_state,
+    }
+    pco_auth_url = f"https://api.planningcenteronline.com/oauth/authorize?{urlencode(params)}"
     return pco_auth_url
 
 

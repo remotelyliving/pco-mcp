@@ -5,6 +5,10 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+
+class PCOOAuthError(Exception):
+    """Raised when a PCO OAuth HTTP request fails."""
+
 PCO_TOKEN_URL = "https://api.planningcenteronline.com/oauth/token"  # noqa: S105
 PCO_ME_URL = "https://api.planningcenteronline.com/people/v2/me"
 
@@ -31,7 +35,7 @@ async def exchange_pco_code(
         )
         if not resp.is_success:
             logger.warning("PCO token exchange failed: status=%s", resp.status_code)
-            raise Exception(f"PCO token exchange failed: {resp.status_code} {resp.text}")
+            raise PCOOAuthError(f"PCO token exchange failed: {resp.status_code} {resp.text}")
         logger.info("PCO token exchange successful")
         result: dict[str, Any] = resp.json()
         return result
@@ -53,7 +57,7 @@ async def get_pco_me(
         )
         if not resp.is_success:
             logger.warning("PCO /me request failed: status=%s", resp.status_code)
-            raise Exception(f"PCO /me request failed: {resp.status_code}")
+            raise PCOOAuthError(f"PCO /me request failed: {resp.status_code}")
         body: dict[str, Any] = resp.json()
         data = body["data"]
         meta = body.get("meta", {})
@@ -89,7 +93,7 @@ async def refresh_pco_token(
             },
         )
         if not resp.is_success:
-            raise Exception(f"PCO token refresh failed: {resp.status_code}")
+            raise PCOOAuthError(f"PCO token refresh failed: {resp.status_code}")
         result: dict[str, Any] = resp.json()
         return result
     finally:

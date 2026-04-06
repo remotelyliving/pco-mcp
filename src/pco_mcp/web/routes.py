@@ -1,14 +1,22 @@
 # src/pco_mcp/web/routes.py
+from functools import lru_cache
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+
+from pco_mcp.config import Settings
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
 router = APIRouter()
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    return Settings()
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -22,13 +30,14 @@ async def setup_guide(request: Request) -> HTMLResponse:
 
 
 @router.get("/auth/start")
-async def auth_start(request: Request) -> RedirectResponse:
+async def auth_start(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+) -> RedirectResponse:
     """Initiate the PCO OAuth flow for direct (non-ChatGPT) users."""
-    from pco_mcp.config import Settings
     from pco_mcp.main import oauth_codes
     from pco_mcp.oauth.provider import create_direct_auth_state
 
-    settings = Settings()
     pco_auth_url = create_direct_auth_state(
         pco_client_id=settings.pco_client_id,
         base_url=settings.base_url,
@@ -38,9 +47,12 @@ async def auth_start(request: Request) -> RedirectResponse:
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(request: Request, token: str = Query("")) -> HTMLResponse:
+async def dashboard(
+    request: Request,
+    token: str = Query(""),
+    settings: Settings = Depends(get_settings),
+) -> HTMLResponse:
     """Show the user's MCP endpoint URL and org info after connecting."""
-    from pco_mcp.config import Settings
     from pco_mcp.oauth.provider import redeem_dashboard_token
 
     if not token:
@@ -50,7 +62,6 @@ async def dashboard(request: Request, token: str = Query("")) -> HTMLResponse:
     if payload is None:
         raise HTTPException(status_code=400, detail="Invalid or expired token")
 
-    settings = Settings()
     mcp_url = f"{settings.base_url}/mcp/"
     org_name = payload.get("org_name") or "Your Organization"
 

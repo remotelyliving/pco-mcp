@@ -13,7 +13,6 @@ class Settings(BaseSettings):
 
     # Optional with defaults
     pco_api_base: str = "https://api.planningcenteronline.com"
-    pco_rate_limit_buffer: int = 10
     token_expiry_hours: int = 24
     debug: bool = False
 

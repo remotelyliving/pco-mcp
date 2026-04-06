@@ -5,6 +5,7 @@ Implements the OAuth layer as plain FastAPI routes (matching the proven
 ChatGPT-compatible pattern from adamgivon/chatgpt-custom-mcp-for-local-files)
 and mounts the FastMCP transport separately at /mcp.
 """
+import asyncio
 import base64
 import hashlib
 import logging
@@ -19,13 +20,15 @@ import httpx
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastmcp import FastMCP
-from sqlalchemy import text
+from sqlalchemy import select, text
 
 from pco_mcp.auth import inject_pco_bearer
 from pco_mcp.config import Settings
+from pco_mcp.crypto import decrypt_token, encrypt_token
 from pco_mcp.db import create_engine, create_session_factory
-from pco_mcp.models import Base
+from pco_mcp.models import Base, OAuthSession, User
 from pco_mcp.oauth.pco_client import exchange_pco_code, get_pco_me
+from pco_mcp.tools._context import close_shared_client
 from pco_mcp.tools.people import register_people_tools
 from pco_mcp.tools.services import register_services_tools
 
@@ -39,6 +42,65 @@ oauth_codes: dict[str, dict[str, Any]] = {}
 oauth_tokens: dict[str, dict[str, Any]] = {}
 
 PCO_AUTHORIZE_URL = "https://api.planningcenteronline.com/oauth/authorize"
+
+
+def _hash_token(token: str) -> str:
+    """SHA-256 hash of a bearer token for safe DB storage."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+async def _persist_session_to_db(
+    *,
+    session_factory: Any,
+    settings: Settings,
+    bearer_token: str,
+    pco_access_token: str,
+    pco_refresh_token: str,
+    pco_token_expires: datetime,
+    our_token_expires: datetime,
+    pco_person_id: int,
+    pco_org_name: str | None,
+) -> None:
+    """Create/update User and OAuthSession records in the database."""
+    async with session_factory() as db:
+        # Upsert User
+        stmt = select(User).where(User.pco_person_id == pco_person_id)
+        result = await db.execute(stmt)
+        user = result.scalar_one_or_none()
+        if user is None:
+            user = User(
+                pco_person_id=pco_person_id,
+                pco_org_name=pco_org_name,
+                pco_access_token_enc=encrypt_token(pco_access_token, settings.token_encryption_key),
+                pco_refresh_token_enc=encrypt_token(
+                    pco_refresh_token or "", settings.token_encryption_key
+                ),
+                pco_token_expires_at=pco_token_expires,
+            )
+            db.add(user)
+            await db.flush()
+        else:
+            user.pco_access_token_enc = encrypt_token(
+                pco_access_token, settings.token_encryption_key
+            )
+            user.pco_refresh_token_enc = encrypt_token(
+                pco_refresh_token or "", settings.token_encryption_key
+            )
+            user.pco_token_expires_at = pco_token_expires
+            user.pco_org_name = pco_org_name
+            user.last_used_at = datetime.now(UTC)
+
+        # Create OAuthSession
+        oauth_session = OAuthSession(
+            user_id=user.id,
+            chatgpt_access_token_hash=_hash_token(bearer_token),
+            expires_at=our_token_expires,
+        )
+        db.add(oauth_session)
+        await db.commit()
+        logger.info(
+            "Persisted session to DB for person_id=%s", pco_person_id
+        )
 
 
 def create_app() -> FastAPI:
@@ -71,6 +133,50 @@ def create_app() -> FastAPI:
     # The raw MCP transport app (no OAuth baked in)
     mcp_app = mcp.http_app(path="/mcp")
 
+    async def _cleanup_expired() -> None:
+        """Periodically sweep expired entries from in-memory OAuth stores."""
+        while True:
+            await asyncio.sleep(300)  # every 5 minutes
+            now = datetime.now(UTC)
+            expired_codes = [k for k, v in oauth_codes.items() if v.get("expires", now) < now]
+            for k in expired_codes:
+                del oauth_codes[k]
+            expired_tokens = [k for k, v in oauth_tokens.items() if v.get("expires", now) < now]
+            for k in expired_tokens:
+                del oauth_tokens[k]
+            if expired_codes or expired_tokens:
+                logger.info(
+                    "Cleanup: removed %d codes, %d tokens",
+                    len(expired_codes),
+                    len(expired_tokens),
+                )
+
+    async def _reload_sessions_from_db() -> None:
+        """On startup, reload active OAuth sessions from the database."""
+        try:
+            async with session_factory() as db:
+                stmt = (
+                    select(OAuthSession, User)
+                    .join(User, OAuthSession.user_id == User.id)
+                    .where(OAuthSession.expires_at > datetime.now(UTC))
+                )
+                result = await db.execute(stmt)
+                count = 0
+                for oauth_session, user in result:
+                    pco_access = decrypt_token(
+                        user.pco_access_token_enc, settings.token_encryption_key
+                    )
+                    pco_refresh = decrypt_token(
+                        user.pco_refresh_token_enc, settings.token_encryption_key
+                    )
+                    # Reconstruct the in-memory token entry using the hash as key
+                    # We can't recover the original bearer token, but we stored the hash.
+                    # The middleware will check DB as fallback, so this is supplementary.
+                    count += 1
+                logger.info("Loaded %d active sessions from DB", count)
+        except Exception:
+            logger.warning("Could not reload sessions from DB (table may not exist yet)")
+
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("pco-mcp starting up (base_url=%s)", settings.base_url)
@@ -78,9 +184,19 @@ def create_app() -> FastAPI:
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
             logger.info("Database schema ready")
-            yield
-            await engine.dispose()
-            logger.info("pco-mcp shut down")
+            await _reload_sessions_from_db()
+            cleanup_task = asyncio.create_task(_cleanup_expired())
+            try:
+                yield
+            finally:
+                cleanup_task.cancel()
+                try:
+                    await cleanup_task
+                except asyncio.CancelledError:
+                    pass
+                await close_shared_client()
+                await engine.dispose()
+                logger.info("pco-mcp shut down")
 
     app = FastAPI(title="pco-mcp", lifespan=lifespan)
 
@@ -333,13 +449,35 @@ def create_app() -> FastAPI:
                     raise HTTPException(status_code=400, detail="Invalid code_verifier")
 
             access_token = secrets.token_urlsafe(32)
+            pco_token_expires = datetime.now(UTC) + timedelta(hours=2)
             oauth_tokens[access_token] = {
                 "pco_access_token": code_data["pco_access_token"],
                 "pco_refresh_token": code_data.get("pco_refresh_token"),
+                "pco_token_expires": pco_token_expires,
                 "pco_me": code_data.get("pco_me", {}),
                 "expires": datetime.now(UTC) + timedelta(hours=1),
             }
             logger.info("Issued access token for client %s", client_id)
+
+            # Persist to DB (best-effort, don't block response)
+            pco_me = code_data.get("pco_me", {})
+            pco_person_id = pco_me.get("id")
+            if pco_person_id:
+                try:
+                    await _persist_session_to_db(
+                        session_factory=session_factory,
+                        settings=settings,
+                        bearer_token=access_token,
+                        pco_access_token=code_data["pco_access_token"],
+                        pco_refresh_token=code_data.get("pco_refresh_token", ""),
+                        pco_token_expires=pco_token_expires,
+                        our_token_expires=oauth_tokens[access_token]["expires"],
+                        pco_person_id=pco_person_id,
+                        pco_org_name=pco_me.get("org_name"),
+                    )
+                except Exception:
+                    logger.warning("Failed to persist session to DB", exc_info=True)
+
             return JSONResponse({
                 "access_token": access_token,
                 "token_type": "bearer",

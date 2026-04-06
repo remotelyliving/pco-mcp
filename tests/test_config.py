@@ -30,7 +30,6 @@ def test_settings_has_defaults_for_optional_fields(monkeypatch: pytest.MonkeyPat
 
     settings = Settings()
     assert settings.pco_api_base == "https://api.planningcenteronline.com"
-    assert settings.pco_rate_limit_buffer == 10
     assert settings.token_expiry_hours == 24
 
 

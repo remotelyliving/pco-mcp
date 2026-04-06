@@ -2,8 +2,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-READ_ANNOTATIONS = {"readOnlyHint": True, "openWorldHint": True}
-WRITE_ANNOTATIONS = {"readOnlyHint": False, "destructiveHint": False, "openWorldHint": True, "confirmationHint": True}
+from pco_mcp.tools import READ_ANNOTATIONS, WRITE_ANNOTATIONS
 
 
 def register_people_tools(mcp: FastMCP) -> None:
@@ -20,10 +19,10 @@ def register_people_tools(mcp: FastMCP) -> None:
         Returns a list of matching people with their basic info (name, email, phone,
         membership status). Use get_person with a specific ID for full details.
         """
-        from pco_mcp.tools._context import get_people_api
+        from pco_mcp.tools._context import get_people_api, safe_tool_call
 
         api = get_people_api()
-        return await api.search_people(name=name, email=email, phone=phone)
+        return await safe_tool_call(api.search_people(name=name, email=email, phone=phone))
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
     async def get_person(person_id: str) -> dict[str, Any]:
@@ -32,10 +31,10 @@ def register_people_tools(mcp: FastMCP) -> None:
         Returns detailed info including name, email, phone, membership, status,
         birthdate, and gender.
         """
-        from pco_mcp.tools._context import get_people_api
+        from pco_mcp.tools._context import get_people_api, safe_tool_call
 
         api = get_people_api()
-        return await api.get_person(person_id)
+        return await safe_tool_call(api.get_person(person_id))
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
     async def list_lists() -> list[dict[str, Any]]:
@@ -43,10 +42,10 @@ def register_people_tools(mcp: FastMCP) -> None:
 
         Returns each list's name, description, and member count.
         """
-        from pco_mcp.tools._context import get_people_api
+        from pco_mcp.tools._context import get_people_api, safe_tool_call
 
         api = get_people_api()
-        return await api.list_lists()
+        return await safe_tool_call(api.list_lists())
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
     async def get_list_members(list_id: str) -> list[dict[str, Any]]:
@@ -54,10 +53,10 @@ def register_people_tools(mcp: FastMCP) -> None:
 
         Provide the list ID (from list_lists). Returns people with basic info.
         """
-        from pco_mcp.tools._context import get_people_api
+        from pco_mcp.tools._context import get_people_api, safe_tool_call
 
         api = get_people_api()
-        return await api.get_list_members(list_id)
+        return await safe_tool_call(api.get_list_members(list_id))
 
     @mcp.tool(annotations=WRITE_ANNOTATIONS)
     async def create_person(
@@ -69,10 +68,12 @@ def register_people_tools(mcp: FastMCP) -> None:
 
         Requires first and last name. Email is optional. Returns the created person record.
         """
-        from pco_mcp.tools._context import get_people_api
+        from pco_mcp.tools._context import get_people_api, safe_tool_call
 
         api = get_people_api()
-        return await api.create_person(first_name=first_name, last_name=last_name, email=email)
+        return await safe_tool_call(
+            api.create_person(first_name=first_name, last_name=last_name, email=email)
+        )
 
     @mcp.tool(annotations=WRITE_ANNOTATIONS)
     async def update_person(
@@ -85,7 +86,7 @@ def register_people_tools(mcp: FastMCP) -> None:
 
         Provide the person ID and any fields to change. Only provided fields are updated.
         """
-        from pco_mcp.tools._context import get_people_api
+        from pco_mcp.tools._context import get_people_api, safe_tool_call
 
         api = get_people_api()
         fields = {}
@@ -95,7 +96,7 @@ def register_people_tools(mcp: FastMCP) -> None:
             fields["last_name"] = last_name
         if email is not None:
             fields["email"] = email
-        return await api.update_person(person_id, **fields)
+        return await safe_tool_call(api.update_person(person_id, **fields))
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
     async def get_person_blockouts(person_id: str) -> list[dict[str, Any]]:
@@ -104,7 +105,7 @@ def register_people_tools(mcp: FastMCP) -> None:
         Shows when they can't serve, including recurring blockouts.
         Use before scheduling to avoid conflicts.
         """
-        from pco_mcp.tools._context import get_people_api
+        from pco_mcp.tools._context import get_people_api, safe_tool_call
 
         api = get_people_api()
-        return await api.get_person_blockouts(person_id)
+        return await safe_tool_call(api.get_person_blockouts(person_id))
