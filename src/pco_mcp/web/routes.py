@@ -25,12 +25,14 @@ async def setup_guide(request: Request) -> HTMLResponse:
 async def auth_start(request: Request) -> RedirectResponse:
     """Initiate the PCO OAuth flow for direct (non-ChatGPT) users."""
     from pco_mcp.config import Settings
+    from pco_mcp.main import oauth_codes
     from pco_mcp.oauth.provider import create_direct_auth_state
 
     settings = Settings()
     pco_auth_url = create_direct_auth_state(
         pco_client_id=settings.pco_client_id,
         base_url=settings.base_url,
+        oauth_codes=oauth_codes,
     )
     return RedirectResponse(url=pco_auth_url)
 

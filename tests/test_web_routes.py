@@ -69,16 +69,15 @@ class TestDashboard:
 
     def test_dashboard_valid_token_shows_page(self, client) -> None:
         import uuid
-        from pco_mcp.oauth.provider import _pending_auth_codes
+        from pco_mcp.oauth.provider import store_dashboard_token
 
         # Inject a valid dashboard token directly
         test_token = "test-dashboard-token-abc123"
         test_user_id = str(uuid.uuid4())
-        _pending_auth_codes[test_token] = {
+        store_dashboard_token(test_token, {
             "user_id": test_user_id,
             "org_name": "Sunrise Church",
-            "type": "dashboard_token",
-        }
+        })
 
         resp = client.get("/dashboard", params={"token": test_token})
         assert resp.status_code == 200
@@ -88,14 +87,13 @@ class TestDashboard:
 
     def test_dashboard_token_is_single_use(self, client) -> None:
         import uuid
-        from pco_mcp.oauth.provider import _pending_auth_codes
+        from pco_mcp.oauth.provider import store_dashboard_token
 
         test_token = "test-single-use-token-xyz"
-        _pending_auth_codes[test_token] = {
+        store_dashboard_token(test_token, {
             "user_id": str(uuid.uuid4()),
             "org_name": "Test Church",
-            "type": "dashboard_token",
-        }
+        })
 
         # First use succeeds
         resp1 = client.get("/dashboard", params={"token": test_token})

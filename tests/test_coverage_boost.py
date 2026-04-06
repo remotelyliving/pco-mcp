@@ -354,78 +354,98 @@ class TestToolsPeopleUpdatePersonEmail:
 
 
 # ---------------------------------------------------------------------------
-# auth.py — PCOTokenVerifier tests
+# auth.py — inject_pco_bearer middleware tests
 # ---------------------------------------------------------------------------
 
 
-class TestPCOTokenVerifier:
+class TestInjectPcoBearerMiddleware:
     @pytest.mark.asyncio
-    async def test_verify_token_success(self) -> None:
-        from pco_mcp.auth import PCOTokenVerifier
+    async def test_injects_user_when_valid_bearer(self) -> None:
+        from datetime import UTC, datetime, timedelta
 
-        pco_me_response = {
-            "data": {
-                "id": "123",
-                "attributes": {"first_name": "Test", "last_name": "User"},
-            },
-            "meta": {"parent": {"attributes": {"name": "Test Church"}}},
+        from fastapi import FastAPI, Request
+        from fastapi.testclient import TestClient
+
+        from pco_mcp.auth import inject_pco_bearer
+
+        tokens = {
+            "valid-tok": {
+                "pco_access_token": "pco-abc",
+                "pco_me": {"id": 42},
+                "expires": datetime.now(UTC) + timedelta(hours=1),
+            }
         }
-        transport = httpx.MockTransport(
-            lambda req: httpx.Response(200, json=pco_me_response)
-        )
-        async with httpx.AsyncClient(transport=transport) as client:
-            verifier = PCOTokenVerifier(http_client=client)
-            result = await verifier.verify_token("valid-token")
 
-        assert result is not None
-        assert result.token == "valid-token"
-        assert result.client_id == "123"
-        assert "people" in result.scopes
-        assert "services" in result.scopes
+        app = FastAPI()
 
-    @pytest.mark.asyncio
-    async def test_verify_token_failure_401(self) -> None:
-        from pco_mcp.auth import PCOTokenVerifier
+        @app.middleware("http")
+        async def mw(request: Request, call_next):
+            return await inject_pco_bearer(request, call_next, tokens)
 
-        transport = httpx.MockTransport(
-            lambda req: httpx.Response(401, json={"error": "unauthorized"})
-        )
-        async with httpx.AsyncClient(transport=transport) as client:
-            verifier = PCOTokenVerifier(http_client=client)
-            result = await verifier.verify_token("bad-token")
+        @app.get("/check")
+        async def check(request: Request):
+            user = request.scope.get("user")
+            if user and hasattr(user, "access_token"):
+                return {"token": user.access_token.token}
+            return {"token": None}
 
-        assert result is None
+        with TestClient(app) as client:
+            resp = client.get("/check", headers={"Authorization": "Bearer valid-tok"})
+        assert resp.json()["token"] == "pco-abc"
 
     @pytest.mark.asyncio
-    async def test_verify_token_network_error(self) -> None:
-        from pco_mcp.auth import PCOTokenVerifier
+    async def test_no_user_when_no_bearer(self) -> None:
+        from fastapi import FastAPI, Request
+        from fastapi.testclient import TestClient
 
-        def raise_error(request):
-            raise httpx.ConnectError("network down")
+        from pco_mcp.auth import inject_pco_bearer
 
-        transport = httpx.MockTransport(raise_error)
-        async with httpx.AsyncClient(transport=transport) as client:
-            verifier = PCOTokenVerifier(http_client=client)
-            result = await verifier.verify_token("any-token")
+        app = FastAPI()
 
-        assert result is None
+        @app.middleware("http")
+        async def mw(request: Request, call_next):
+            return await inject_pco_bearer(request, call_next, {})
 
+        @app.get("/check")
+        async def check(request: Request):
+            user = request.scope.get("user")
+            return {"has_user": user is not None}
 
-# ---------------------------------------------------------------------------
-# auth.py — PCOProvider instantiation
-# ---------------------------------------------------------------------------
+        with TestClient(app) as client:
+            resp = client.get("/check")
+        assert resp.json()["has_user"] is False
 
+    @pytest.mark.asyncio
+    async def test_expired_token_not_injected(self) -> None:
+        from datetime import UTC, datetime, timedelta
 
-class TestPCOProvider:
-    def test_provider_initializes(self) -> None:
-        from pco_mcp.auth import PCOProvider
+        from fastapi import FastAPI, Request
+        from fastapi.testclient import TestClient
 
-        provider = PCOProvider(
-            client_id="test-id",
-            client_secret="test-secret",
-            base_url="https://pco-mcp.test",
-        )
-        assert provider is not None
+        from pco_mcp.auth import inject_pco_bearer
+
+        tokens = {
+            "expired-tok": {
+                "pco_access_token": "pco-abc",
+                "pco_me": {"id": 42},
+                "expires": datetime.now(UTC) - timedelta(hours=1),
+            }
+        }
+
+        app = FastAPI()
+
+        @app.middleware("http")
+        async def mw(request: Request, call_next):
+            return await inject_pco_bearer(request, call_next, tokens)
+
+        @app.get("/check")
+        async def check(request: Request):
+            user = request.scope.get("user")
+            return {"has_user": user is not None}
+
+        with TestClient(app) as client:
+            resp = client.get("/check", headers={"Authorization": "Bearer expired-tok"})
+        assert resp.json()["has_user"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -437,22 +457,28 @@ class TestOAuthProviderHelpers:
     def test_create_direct_auth_state(self) -> None:
         from pco_mcp.oauth.provider import create_direct_auth_state
 
+        codes: dict = {}
         url = create_direct_auth_state(
             pco_client_id="test-id",
             base_url="https://pco-mcp.test",
+            oauth_codes=codes,
         )
         assert "api.planningcenteronline.com/oauth/authorize" in url
         assert "client_id=test-id" in url
         assert "state=" in url
+        assert len(codes) == 1
 
     def test_redeem_dashboard_token_valid(self) -> None:
-        from pco_mcp.oauth.provider import _pending_auth_codes, redeem_dashboard_token
+        from pco_mcp.oauth.provider import (
+            _pending_dashboard_tokens,
+            redeem_dashboard_token,
+            store_dashboard_token,
+        )
 
-        _pending_auth_codes["tok123"] = {
+        store_dashboard_token("tok123", {
             "user_id": "abc",
             "org_name": "Church",
-            "type": "dashboard_token",
-        }
+        })
         result = redeem_dashboard_token("tok123")
         assert result is not None
         assert result["org_name"] == "Church"
@@ -464,9 +490,12 @@ class TestOAuthProviderHelpers:
         assert result is None
 
     def test_redeem_dashboard_token_wrong_type(self) -> None:
-        from pco_mcp.oauth.provider import _pending_auth_codes, redeem_dashboard_token
+        from pco_mcp.oauth.provider import (
+            _pending_dashboard_tokens,
+            redeem_dashboard_token,
+        )
 
-        _pending_auth_codes["tok456"] = {
+        _pending_dashboard_tokens["tok456"] = {
             "flow": "direct",
         }
         result = redeem_dashboard_token("tok456")

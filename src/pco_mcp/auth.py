@@ -1,131 +1,63 @@
 # src/pco_mcp/auth.py
-"""PCO OAuth provider for FastMCP using OAuthProxy."""
+"""Bearer-token middleware for the MCP transport.
+
+Resolves our issued access tokens to upstream PCO access tokens and
+injects them into the ASGI scope so that FastMCP's
+``get_access_token()`` (used by tools via ``_context.py``) finds them.
+"""
 from __future__ import annotations
 
-import contextlib
 import logging
-from typing import Literal
+from datetime import UTC, datetime
+from typing import Any
 
-import httpx
-from pydantic import AnyHttpUrl
-
-from fastmcp.server.auth import TokenVerifier
+from fastapi import Request
 from fastmcp.server.auth.auth import AccessToken
-from fastmcp.server.auth.oauth_proxy import OAuthProxy
+from fastmcp.server.dependencies import AuthenticatedUser
 
 logger = logging.getLogger(__name__)
 
-PCO_AUTHORIZE_URL = "https://api.planningcenteronline.com/oauth/authorize"
-PCO_TOKEN_URL = "https://api.planningcenteronline.com/oauth/token"  # noqa: S105
-PCO_ME_URL = "https://api.planningcenteronline.com/people/v2/me"
 
+async def inject_pco_bearer(
+    request: Request,
+    call_next: Any,
+    oauth_tokens: dict[str, dict[str, Any]],
+) -> Any:
+    """Middleware helper: resolve Bearer token to PCO credentials.
 
-class PCOTokenVerifier(TokenVerifier):
-    """Verify PCO OAuth tokens by calling the /people/v2/me endpoint.
-
-    PCO tokens are opaque, so we validate them by making an authenticated
-    API call.  On success the upstream PCO access token is stashed in the
-    AccessToken so that tools can use it directly.
+    If the request carries a valid ``Authorization: Bearer <token>`` that
+    maps to one of our issued tokens, we create an ``AuthenticatedUser``
+    and stash it in ``request.scope["user"]`` so that FastMCP's
+    ``get_access_token()`` returns the upstream PCO access token.
     """
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        bearer_token = auth_header[7:]
+        token_data = oauth_tokens.get(bearer_token)
+        if token_data is not None:
+            # Check expiry
+            expires = token_data.get("expires")
+            if expires and expires < datetime.now(UTC):
+                logger.debug("Bearer token expired")
+            else:
+                pco_access_token = token_data.get("pco_access_token")
+                if pco_access_token:
+                    pco_me = token_data.get("pco_me", {})
+                    person_id = str(pco_me.get("id", "unknown"))
 
-    def __init__(
-        self,
-        *,
-        required_scopes: list[str] | None = None,
-        timeout_seconds: int = 10,
-        http_client: httpx.AsyncClient | None = None,
-    ) -> None:
-        super().__init__(required_scopes=required_scopes)
-        self.timeout_seconds = timeout_seconds
-        self._http_client = http_client
-
-    async def verify_token(self, token: str) -> AccessToken | None:
-        """Verify a PCO access token by calling /people/v2/me."""
-        try:
-            async with (
-                contextlib.nullcontext(self._http_client)
-                if self._http_client is not None
-                else httpx.AsyncClient(timeout=self.timeout_seconds)
-            ) as client:
-                response = await client.get(
-                    PCO_ME_URL,
-                    headers={
-                        "Authorization": f"Bearer {token}",
-                    },
-                )
-
-                if response.status_code != 200:
-                    logger.debug(
-                        "PCO token verification failed: %d",
-                        response.status_code,
+                    access_token = AccessToken(
+                        token=pco_access_token,
+                        client_id=person_id,
+                        scopes=["people", "services"],
+                        expires_at=None,
+                        claims={
+                            "sub": person_id,
+                            "pco_person_id": pco_me.get("id"),
+                        },
                     )
-                    return None
+                    request.scope["user"] = AuthenticatedUser(access_token)
+                    logger.debug(
+                        "Authenticated request for person_id=%s", person_id
+                    )
 
-                body = response.json()
-                data = body["data"]
-                person_id = data["id"]
-
-                return AccessToken(
-                    token=token,
-                    client_id=str(person_id),
-                    scopes=["people", "services"],
-                    expires_at=None,
-                    claims={
-                        "sub": str(person_id),
-                        "pco_person_id": person_id,
-                    },
-                )
-
-        except httpx.RequestError as e:
-            logger.debug("Failed to verify PCO token: %s", e)
-            return None
-        except Exception as e:
-            logger.debug("PCO token verification error: %s", e)
-            return None
-
-
-class PCOProvider(OAuthProxy):
-    """Complete PCO OAuth provider for FastMCP.
-
-    Wraps Planning Center Online as the upstream identity provider.
-    ChatGPT/Claude register via DCR, users authorize via PCO, and
-    tools receive the upstream PCO access token through
-    ``get_access_token().token``.
-    """
-
-    def __init__(
-        self,
-        *,
-        client_id: str,
-        client_secret: str,
-        base_url: AnyHttpUrl | str,
-        issuer_url: AnyHttpUrl | str | None = None,
-        required_scopes: list[str] | None = None,
-        timeout_seconds: int = 10,
-        require_authorization_consent: bool | Literal["external"] = "external",
-        http_client: httpx.AsyncClient | None = None,
-    ) -> None:
-        required_scopes_final = required_scopes or ["people", "services"]
-
-        token_verifier = PCOTokenVerifier(
-            required_scopes=required_scopes_final,
-            timeout_seconds=timeout_seconds,
-            http_client=http_client,
-        )
-
-        super().__init__(
-            upstream_authorization_endpoint=PCO_AUTHORIZE_URL,
-            upstream_token_endpoint=PCO_TOKEN_URL,
-            upstream_client_id=client_id,
-            upstream_client_secret=client_secret,
-            token_verifier=token_verifier,
-            base_url=base_url,
-            issuer_url=issuer_url or base_url,
-            require_authorization_consent=require_authorization_consent,
-            extra_authorize_params={"scope": "people services"},
-        )
-
-        logger.info(
-            "Initialized PCO OAuth provider (base_url=%s)",
-            base_url,
-        )
+    return await call_next(request)
