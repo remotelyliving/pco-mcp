@@ -96,3 +96,15 @@ def register_people_tools(mcp: FastMCP) -> None:
         if email is not None:
             fields["email"] = email
         return await api.update_person(person_id, **fields)
+
+    @mcp.tool(annotations=READ_ANNOTATIONS)
+    async def get_person_blockouts(person_id: str) -> list[dict[str, Any]]:
+        """Check a person's unavailability / blockout dates.
+
+        Shows when they can't serve, including recurring blockouts.
+        Use before scheduling to avoid conflicts.
+        """
+        from pco_mcp.tools._context import get_people_api
+
+        api = get_people_api()
+        return await api.get_person_blockouts(person_id)
