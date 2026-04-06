@@ -1,0 +1,27 @@
+{
+    "data": [
+        {
+            "type": "Blockout",
+            "id": "2001",
+            "attributes": {
+                "description": "Vacation",
+                "reason": "Out of town",
+                "repeat_frequency": null,
+                "starts_at": "2026-05-01T00:00:00Z",
+                "ends_at": "2026-05-08T00:00:00Z"
+            }
+        },
+        {
+            "type": "Blockout",
+            "id": "2002",
+            "attributes": {
+                "description": "Weekly commitment",
+                "reason": "Family obligation",
+                "repeat_frequency": "weekly",
+                "starts_at": "2026-04-10T00:00:00Z",
+                "ends_at": "2026-04-10T23:59:59Z"
+            }
+        }
+    ],
+    "meta": {"total_count": 2, "count": 2}
+}

@@ -1,0 +1,27 @@
+{
+    "data": [
+        {
+            "type": "SongSchedule",
+            "id": "901",
+            "attributes": {
+                "plan_dates": "March 30, 2026",
+                "plan_sort_date": "2026-03-30T09:00:00Z",
+                "service_type_name": "Sunday Morning",
+                "arrangement_name": "Standard",
+                "key_name": "G"
+            }
+        },
+        {
+            "type": "SongSchedule",
+            "id": "902",
+            "attributes": {
+                "plan_dates": "February 23, 2026",
+                "plan_sort_date": "2026-02-23T09:00:00Z",
+                "service_type_name": "Sunday Morning",
+                "arrangement_name": "Standard",
+                "key_name": "A"
+            }
+        }
+    ],
+    "meta": {"total_count": 2, "count": 2}
+}

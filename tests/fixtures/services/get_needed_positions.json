@@ -1,0 +1,23 @@
+{
+    "data": [
+        {
+            "type": "NeededPosition",
+            "id": "1201",
+            "attributes": {
+                "team_position_name": "Lead Vocalist",
+                "quantity": 1,
+                "scheduled_to": "plan"
+            }
+        },
+        {
+            "type": "NeededPosition",
+            "id": "1202",
+            "attributes": {
+                "team_position_name": "Sound Tech",
+                "quantity": 2,
+                "scheduled_to": "plan"
+            }
+        }
+    ],
+    "meta": {"total_count": 2, "count": 2}
+}

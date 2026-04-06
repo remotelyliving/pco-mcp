@@ -1,0 +1,27 @@
+{
+    "data": [
+        {
+            "type": "Arrangement",
+            "id": "1001",
+            "attributes": {
+                "name": "Standard",
+                "bpm": 74,
+                "length": 240,
+                "meter": "4/4",
+                "notes": "Original key"
+            }
+        },
+        {
+            "type": "Arrangement",
+            "id": "1002",
+            "attributes": {
+                "name": "Acoustic",
+                "bpm": 72,
+                "length": 220,
+                "meter": "4/4",
+                "notes": "Stripped down version"
+            }
+        }
+    ],
+    "meta": {"total_count": 2, "count": 2}
+}

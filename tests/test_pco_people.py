@@ -60,3 +60,53 @@ class TestListLists:
         assert len(lists) == 2
         assert lists[0]["name"] == "Volunteers"
         assert lists[0]["total_count"] == 45
+
+
+class TestSimplifyPersonIncludesBirthdateGender:
+    async def test_get_person_includes_birthdate(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = load_fixture("get_person.json")
+        api = PeopleAPI(mock_client)
+        person = await api.get_person("1001")
+        assert "birthdate" in person
+        assert person["birthdate"] == "1990-05-15"
+
+    async def test_get_person_includes_gender(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = load_fixture("get_person.json")
+        api = PeopleAPI(mock_client)
+        person = await api.get_person("1001")
+        assert "gender" in person
+        assert person["gender"] == "Female"
+
+
+class TestGetPersonBlockouts:
+    async def test_returns_blockouts(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = load_fixture("get_person_blockouts.json")
+        api = PeopleAPI(mock_client)
+        blockouts = await api.get_person_blockouts("1001")
+        assert len(blockouts) == 2
+        assert blockouts[0]["description"] == "Vacation"
+        assert blockouts[0]["reason"] == "Out of town"
+        assert blockouts[1]["repeat_frequency"] == "weekly"
+
+    async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = load_fixture("get_person_blockouts.json")
+        api = PeopleAPI(mock_client)
+        await api.get_person_blockouts("1001")
+        mock_client.get.assert_called_once_with("/people/v2/people/1001/blockouts")
+
+    async def test_blockout_has_expected_fields(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = load_fixture("get_person_blockouts.json")
+        api = PeopleAPI(mock_client)
+        blockouts = await api.get_person_blockouts("1001")
+        b = blockouts[0]
+        assert "id" in b
+        assert "description" in b
+        assert "starts_at" in b
+        assert "ends_at" in b
+        assert "repeat_frequency" in b
+
+    async def test_returns_empty_list_when_no_blockouts(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = {"data": [], "meta": {"total_count": 0, "count": 0}}
+        api = PeopleAPI(mock_client)
+        blockouts = await api.get_person_blockouts("9999")
+        assert blockouts == []

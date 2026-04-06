@@ -1,0 +1,15 @@
+{
+    "data": {
+        "type": "Item",
+        "id": "504",
+        "attributes": {
+            "title": "Holy Spirit",
+            "sequence": 4,
+            "item_type": "song",
+            "length": 280,
+            "song_id": 1003,
+            "description": null,
+            "service_position": "during"
+        }
+    }
+}

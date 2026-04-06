@@ -92,6 +92,63 @@ class TestPCOClientGet:
         assert captured_request.headers["authorization"] == "Bearer test-token-123"
 
 
+class TestPCOClientDelete:
+    async def test_delete_success(self, pco_client: PCOClient) -> None:
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(
+                204,
+                headers={
+                    "X-PCO-API-Request-Rate-Count": "1",
+                    "X-PCO-API-Request-Rate-Limit": "100",
+                    "X-PCO-API-Request-Rate-Period": "20",
+                },
+            )
+        )
+        pco_client._client = httpx.AsyncClient(transport=transport)
+        result = await pco_client.delete("/services/v2/service_types/201/plans/301/items/504")
+        assert result is None
+
+    async def test_delete_404_raises_api_error(self, pco_client: PCOClient) -> None:
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(
+                404,
+                json={"errors": [{"detail": "not found"}]},
+                headers={
+                    "X-PCO-API-Request-Rate-Count": "1",
+                    "X-PCO-API-Request-Rate-Limit": "100",
+                    "X-PCO-API-Request-Rate-Period": "20",
+                },
+            )
+        )
+        pco_client._client = httpx.AsyncClient(transport=transport)
+        with pytest.raises(PCOAPIError) as exc_info:
+            await pco_client.delete("/services/v2/service_types/201/plans/301/items/999")
+        assert exc_info.value.status_code == 404
+
+    async def test_delete_includes_bearer_auth(self, pco_client: PCOClient) -> None:
+        captured_request = None
+
+        def capture_handler(request: httpx.Request) -> httpx.Response:
+            nonlocal captured_request
+            captured_request = request
+            return httpx.Response(
+                204,
+                headers={
+                    "X-PCO-API-Request-Rate-Count": "1",
+                    "X-PCO-API-Request-Rate-Limit": "100",
+                    "X-PCO-API-Request-Rate-Period": "20",
+                },
+            )
+
+        pco_client._client = httpx.AsyncClient(
+            transport=httpx.MockTransport(capture_handler)
+        )
+        await pco_client.delete("/services/v2/service_types/201/plans/301/items/504")
+        assert captured_request is not None
+        assert captured_request.headers["authorization"] == "Bearer test-token-123"
+        assert captured_request.method == "DELETE"
+
+
 class TestPCOClientPagination:
     async def test_get_all_pages(self, pco_client: PCOClient) -> None:
         page1 = {

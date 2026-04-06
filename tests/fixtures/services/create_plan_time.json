@@ -1,0 +1,12 @@
+{
+    "data": {
+        "type": "PlanTime",
+        "id": "601",
+        "attributes": {
+            "name": "Main Service",
+            "time_type": "service",
+            "starts_at": "2026-04-13T10:00:00Z",
+            "ends_at": "2026-04-13T11:30:00Z"
+        }
+    }
+}

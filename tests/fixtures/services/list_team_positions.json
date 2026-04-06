@@ -1,0 +1,29 @@
+{
+    "data": [
+        {
+            "type": "TeamPosition",
+            "id": "801",
+            "attributes": {
+                "name": "Lead Vocalist",
+                "tags": ["vocals"]
+            }
+        },
+        {
+            "type": "TeamPosition",
+            "id": "802",
+            "attributes": {
+                "name": "Electric Guitar",
+                "tags": ["instruments"]
+            }
+        },
+        {
+            "type": "TeamPosition",
+            "id": "803",
+            "attributes": {
+                "name": "Drums",
+                "tags": ["instruments"]
+            }
+        }
+    ],
+    "meta": {"total_count": 3, "count": 3}
+}

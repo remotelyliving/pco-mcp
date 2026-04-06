@@ -60,3 +60,15 @@ class TestPeopleToolRegistration:
             if tool.name in ("create_person", "update_person"):
                 assert tool.annotations is not None
                 assert tool.annotations.readOnlyHint is False
+
+    def test_get_person_blockouts_tool_registered(self) -> None:
+        mcp = make_mcp_with_people_tools()
+        tool_names = [t.name for t in _get_tools(mcp)]
+        assert "get_person_blockouts" in tool_names
+
+    def test_get_person_blockouts_has_readonly_annotation(self) -> None:
+        mcp = make_mcp_with_people_tools()
+        for tool in _get_tools(mcp):
+            if tool.name == "get_person_blockouts":
+                assert tool.annotations is not None
+                assert tool.annotations.readOnlyHint is True

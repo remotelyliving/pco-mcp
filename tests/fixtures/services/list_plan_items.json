@@ -1,0 +1,44 @@
+{
+    "data": [
+        {
+            "type": "Item",
+            "id": "501",
+            "attributes": {
+                "title": "Amazing Grace",
+                "sequence": 1,
+                "item_type": "song",
+                "length": 240,
+                "song_id": 1001,
+                "description": null,
+                "service_position": "pre_service"
+            }
+        },
+        {
+            "type": "Item",
+            "id": "502",
+            "attributes": {
+                "title": "Welcome & Announcements",
+                "sequence": 2,
+                "item_type": "regular",
+                "length": 180,
+                "song_id": null,
+                "description": "Opening welcome",
+                "service_position": "during"
+            }
+        },
+        {
+            "type": "Item",
+            "id": "503",
+            "attributes": {
+                "title": "How Great Is Our God",
+                "sequence": 3,
+                "item_type": "song",
+                "length": 300,
+                "song_id": 1002,
+                "description": null,
+                "service_position": "during"
+            }
+        }
+    ],
+    "meta": {"total_count": 3, "count": 3}
+}

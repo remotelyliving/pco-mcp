@@ -1,0 +1,23 @@
+{
+    "data": [
+        {
+            "type": "PlanTemplate",
+            "id": "1101",
+            "attributes": {
+                "name": "Standard Sunday",
+                "item_count": 8,
+                "team_count": 3
+            }
+        },
+        {
+            "type": "PlanTemplate",
+            "id": "1102",
+            "attributes": {
+                "name": "Holiday Service",
+                "item_count": 10,
+                "team_count": 4
+            }
+        }
+    ],
+    "meta": {"total_count": 2, "count": 2}
+}

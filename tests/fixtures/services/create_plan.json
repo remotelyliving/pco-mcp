@@ -1,0 +1,13 @@
+{
+    "data": {
+        "type": "Plan",
+        "id": "401",
+        "attributes": {
+            "title": "Sunday Morning",
+            "dates": "April 13, 2026",
+            "sort_date": "2026-04-13T09:00:00Z",
+            "items_count": 0,
+            "needed_positions_count": 0
+        }
+    }
+}

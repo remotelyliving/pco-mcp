@@ -1,0 +1,23 @@
+{
+    "data": [
+        {
+            "type": "Team",
+            "id": "701",
+            "attributes": {
+                "name": "Worship Team",
+                "schedule_to": "plan",
+                "rehearsal_team": false
+            }
+        },
+        {
+            "type": "Team",
+            "id": "702",
+            "attributes": {
+                "name": "Tech Team",
+                "schedule_to": "plan",
+                "rehearsal_team": false
+            }
+        }
+    ],
+    "meta": {"total_count": 2, "count": 2}
+}
