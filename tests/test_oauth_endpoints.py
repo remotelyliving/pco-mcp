@@ -71,18 +71,18 @@ class TestOAuthDiscovery:
         assert "authorization_code" in body["grant_types_supported"]
         assert "client_secret_post" in body["token_endpoint_auth_methods_supported"]
 
-    def test_issuer_derived_from_request(self, client) -> None:
+    def test_issuer_uses_settings_base_url(self, client) -> None:
         resp = client.get("/.well-known/oauth-authorization-server")
         body = resp.json()
-        # TestClient base_url is http://testserver
-        assert body["issuer"] == "http://testserver"
+        # Uses settings.base_url (HTTPS), not request.base_url (HTTP behind proxy)
+        assert body["issuer"] == "https://pco-mcp.test"
 
     def test_protected_resource(self, client) -> None:
         resp = client.get("/.well-known/oauth-protected-resource")
         assert resp.status_code == 200
         body = resp.json()
-        assert body["resource"] == "http://testserver"
-        assert "http://testserver" in body["authorization_servers"]
+        assert body["resource"] == "https://pco-mcp.test"
+        assert "https://pco-mcp.test" in body["authorization_servers"]
         assert body["bearer_methods_supported"] == ["header"]
 
 
