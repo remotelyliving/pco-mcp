@@ -2,18 +2,18 @@
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.templating import Jinja2Templates
 from fastmcp import FastMCP
 from sqlalchemy import text
 
+from pco_mcp.auth import PCOProvider
 from pco_mcp.config import Settings
 from pco_mcp.db import create_engine, create_session_factory
-from pco_mcp.middleware import BearerTokenMiddleware
 from pco_mcp.models import Base
-from pco_mcp.oauth.provider import create_oauth_router
 from pco_mcp.tools.people import register_people_tools
 from pco_mcp.tools.services import register_services_tools
 
@@ -30,6 +30,13 @@ def create_app() -> FastAPI:
     engine = create_engine(settings)
     session_factory = create_session_factory(engine)
 
+    # Build the PCO OAuth provider — handles DCR, PKCE, CORS, token mgmt
+    auth = PCOProvider(
+        client_id=settings.pco_client_id,
+        client_secret=settings.pco_client_secret,
+        base_url=settings.base_url,
+    )
+
     mcp = FastMCP(
         "Planning Center MCP",
         instructions=(
@@ -37,27 +44,14 @@ def create_app() -> FastAPI:
             "You can search people, view service plans, list songs, and manage team schedules. "
             "Always confirm before creating or updating records."
         ),
+        auth=auth,
     )
     register_people_tools(mcp)
     register_services_tools(mcp)
 
-    mcp_app = mcp.http_app(path="/")
-
-    from pathlib import Path  # noqa: PLC0415
-
-    from fastapi.templating import Jinja2Templates  # noqa: PLC0415
-
-    _template_dir = Path(__file__).parent / "web" / "templates"
-    _templates = Jinja2Templates(directory=str(_template_dir))
-
-    oauth_router = create_oauth_router(
-        session_factory=session_factory,
-        pco_client_id=settings.pco_client_id,
-        pco_client_secret=settings.pco_client_secret,
-        base_url=settings.base_url,
-        token_encryption_key=settings.token_encryption_key,
-        templates=_templates,
-    )
+    # FastMCP's http_app now includes all OAuth endpoints (.well-known, /register,
+    # /authorize, /token, /callback, protected-resource metadata, CORS, etc.)
+    mcp_app = mcp.http_app(path="/mcp")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -73,20 +67,6 @@ def create_app() -> FastAPI:
             logger.info("pco-mcp shut down")
 
     app = FastAPI(title="pco-mcp", lifespan=lifespan)
-
-    # CORS — required so browser-based MCP clients (ChatGPT, Claude.ai) can
-    # complete Dynamic Client Registration and the OAuth flow.
-    # Use regex to allow ChatGPT/Claude origins plus any explicit base_url.
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origin_regex=r"https://(chatgpt\.com|chat\.openai\.com|claude\.ai|platform\.openai\.com|cursor\.com|.*\.cursor\.sh)$",
-        allow_credentials=True,
-        allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Content-Type", "Authorization", "MCP-Protocol-Version",
-                       "Mcp-Session-Id", "Last-Event-ID"],
-        expose_headers=["WWW-Authenticate", "Mcp-Session-Id"],
-        max_age=3600,
-    )
 
     @app.middleware("http")
     async def add_security_headers(request: Request, call_next):
@@ -105,76 +85,11 @@ def create_app() -> FastAPI:
             return JSONResponse({"status": "unhealthy", "db": "error"}, status_code=503)
         return JSONResponse({"status": "healthy"})
 
-    # OAuth 2.1 Authorization Server Metadata (RFC 8414)
-    # ChatGPT queries these to discover authorize/token/register endpoints.
-    def _auth_server_metadata() -> dict:
-        return {
-            "issuer": settings.base_url,
-            "authorization_endpoint": f"{settings.base_url}/oauth/authorize",
-            "token_endpoint": f"{settings.base_url}/oauth/token",
-            "registration_endpoint": f"{settings.base_url}/oauth/register",
-            "jwks_uri": f"{settings.base_url}/.well-known/jwks.json",
-            "response_types_supported": ["code"],
-            "response_modes_supported": ["query"],
-            "grant_types_supported": ["authorization_code", "refresh_token"],
-            "token_endpoint_auth_methods_supported": [
-                "client_secret_post",
-                "client_secret_basic",
-                "none",
-            ],
-            "code_challenge_methods_supported": ["S256"],
-            "scopes_supported": ["people", "services"],
-            "subject_types_supported": ["public"],
-            "id_token_signing_alg_values_supported": ["RS256"],
-            "service_documentation": f"{settings.base_url}/setup-guide",
-            "ui_locales_supported": ["en-US"],
-            "client_id_metadata_document_supported": False,
-            "require_pushed_authorization_requests": False,
-            "require_request_uri_registration": False,
-        }
-
-    # Protected Resource Metadata (RFC 9728)
-    def _protected_resource_metadata() -> dict:
-        return {
-            "resource": f"{settings.base_url}/mcp",
-            "authorization_servers": [settings.base_url],
-            "bearer_methods_supported": ["header"],
-            "scopes_supported": ["people", "services"],
-        }
-
-    @app.api_route("/.well-known/oauth-authorization-server", methods=["GET", "HEAD"])
-    @app.api_route("/.well-known/oauth-authorization-server/mcp", methods=["GET", "HEAD"])
-    @app.api_route("/.well-known/openid-configuration", methods=["GET", "HEAD"])
-    @app.api_route("/.well-known/openid-configuration/mcp", methods=["GET", "HEAD"])
-    async def oauth_metadata() -> JSONResponse:
-        return JSONResponse(_auth_server_metadata())
-
-    @app.api_route("/.well-known/oauth-protected-resource", methods=["GET", "HEAD"])
-    @app.api_route("/.well-known/oauth-protected-resource/mcp", methods=["GET", "HEAD"])
-    async def protected_resource_metadata() -> JSONResponse:
-        return JSONResponse(_protected_resource_metadata())
-
-    @app.get("/.well-known/jwks.json")
-    async def jwks() -> JSONResponse:
-        # We don't sign JWTs (we issue opaque bearer tokens), but some
-        # clients require this endpoint to be reachable.
-        return JSONResponse({"keys": []})
-
-    app.include_router(oauth_router, prefix="/oauth")
-
-    # Web routes (Task 14)
+    # Web routes (landing page, setup guide, dashboard)
     from pco_mcp.web.routes import router as web_router  # noqa: PLC0415
     app.include_router(web_router)
 
-    wrapped_mcp = BearerTokenMiddleware(
-        mcp_app,
-        session_factory=session_factory,
-        token_encryption_key=settings.token_encryption_key,
-        pco_client_id=settings.pco_client_id,
-        pco_client_secret=settings.pco_client_secret,
-        pco_api_base=settings.pco_api_base,
-        base_url=settings.base_url,
-    )
-    app.mount("/mcp", wrapped_mcp)
+    # Mount the MCP app (includes all OAuth + MCP transport endpoints)
+    app.mount("/", mcp_app)
 
     return app

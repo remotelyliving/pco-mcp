@@ -1,14 +1,19 @@
 """Tests that invoke the actual tool function bodies for services tools.
 
 These tests call the actual decorated tool functions via their .fn attribute,
-after setting up the per-request context with a mocked PCO client.
+after mocking get_access_token so that get_pco_client() returns a mock PCOClient.
 """
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from pco_mcp.pco.client import PCOClient
-from pco_mcp.tools._context import set_pco_client
+
+
+def _fake_access_token(token: str = "test-pco-token"):
+    at = MagicMock()
+    at.token = token
+    return at
 
 
 @pytest.fixture
@@ -18,8 +23,15 @@ def mock_client() -> PCOClient:
 
 @pytest.fixture(autouse=True)
 def setup_context(mock_client: PCOClient) -> None:
-    """Set up a mock PCO client in context before each test."""
-    set_pco_client(mock_client)
+    """Mock get_access_token and patch PCOClient so get_pco_client() returns our mock."""
+    with patch(
+        "pco_mcp.tools._context.get_access_token",
+        return_value=_fake_access_token(),
+    ), patch(
+        "pco_mcp.tools._context.PCOClient",
+        return_value=mock_client,
+    ):
+        yield
 
 
 def _get_tool_fn(mcp, name):

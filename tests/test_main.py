@@ -25,26 +25,17 @@ class TestHealthCheck:
 class TestMCPEndpoint:
     def test_mcp_endpoint_exists(self, client) -> None:
         resp = client.get("/mcp/")
+        # May be 200, 400, 401, 405, 406 — just ensure it is reachable
         assert resp.status_code in (200, 400, 401, 405, 406)
 
 
-class TestOAuthEndpoints:
-    def test_register_endpoint_exists(self, client) -> None:
-        resp = client.post(
-            "/oauth/register",
-            json={"redirect_uris": ["https://chatgpt.com/callback"]},
-        )
-        assert resp.status_code == 201
+class TestOAuthMetadata:
+    """FastMCP's OAuthProxy serves .well-known endpoints automatically."""
 
-    def test_authorize_endpoint_exists(self, client) -> None:
-        resp = client.get(
-            "/oauth/authorize",
-            params={
-                "client_id": "test",
-                "redirect_uri": "https://chatgpt.com/callback",
-                "response_type": "code",
-                "state": "test",
-            },
-            follow_redirects=False,
-        )
-        assert resp.status_code in (302, 307)
+    def test_oauth_authorization_server_metadata(self, client) -> None:
+        resp = client.get("/.well-known/oauth-authorization-server")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "authorization_endpoint" in body
+        assert "token_endpoint" in body
+        assert "registration_endpoint" in body

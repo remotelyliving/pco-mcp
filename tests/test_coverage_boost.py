@@ -1,291 +1,20 @@
 """Targeted tests to boost coverage to 90%+.
 
 Covers uncovered lines in:
-- middleware.py (lines 26-31, 62-63, 99->95, 115-127, 133-158, 162-168)
 - pco/client.py (lines 41, 46, 89->99, 97, 107-113, 133-135)
 - oauth/pco_client.py (lines 40, 55-56, 70, 92, 97)
-- main.py (lines 62, 71-72)
-- oauth/provider.py (lines 195-202)
-- pco/people.py (lines 23-24)
-- tools/people.py (line 97)
+- main.py (lines for health check DB error)
+- auth.py (PCOTokenVerifier and PCOProvider)
+- tools/_context.py (get_pco_client with no token)
 """
-import hashlib
-import uuid
-from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from pco_mcp.crypto import encrypt_token
-from pco_mcp.middleware import BearerTokenMiddleware, _json_error
-from pco_mcp.models import Base, OAuthSession, User
 from pco_mcp.oauth.pco_client import exchange_pco_code, get_pco_me, refresh_pco_token
 from pco_mcp.pco.client import PCOClient
 from pco_mcp.pco.people import PeopleAPI
-
-
-# ---------------------------------------------------------------------------
-# middleware.py — _json_error helper (lines 26-31)
-# ---------------------------------------------------------------------------
-
-
-class TestJsonErrorHelper:
-    def test_json_error_returns_correct_status(self) -> None:
-        status, headers, body = _json_error(401, "Unauthorized")
-        assert status == 401
-
-    def test_json_error_returns_json_content_type(self) -> None:
-        status, headers, body = _json_error(403, "Forbidden")
-        header_dict = dict(headers)
-        assert header_dict[b"content-type"] == b"application/json"
-
-    def test_json_error_body_contains_error_key(self) -> None:
-        import json
-
-        status, headers, body = _json_error(500, "Internal error")
-        parsed = json.loads(body)
-        assert parsed["error"] == "Internal error"
-
-    def test_json_error_content_length_matches_body(self) -> None:
-        status, headers, body = _json_error(404, "Not found")
-        header_dict = dict(headers)
-        assert int(header_dict[b"content-length"]) == len(body)
-
-
-# ---------------------------------------------------------------------------
-# middleware.py — non-HTTP scope passthrough (lines 62-63)
-# ---------------------------------------------------------------------------
-
-
-class TestMiddlewareNonHttpScope:
-    @pytest.mark.asyncio
-    async def test_non_http_scope_passes_through(self) -> None:
-        """WebSocket (or lifespan) scopes should bypass auth entirely."""
-        inner_called = []
-
-        async def inner_app(scope, receive, send):
-            inner_called.append(scope["type"])
-
-        engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-
-        mw = BearerTokenMiddleware(
-            inner_app,
-            session_factory=factory,
-            token_encryption_key="JyU3hqD0bM06X5j88vekTdYHJJb5LxI1YWR0f55cw-c=",
-            pco_client_id="cid",
-            pco_client_secret="csecret",
-        )
-        await mw({"type": "websocket", "path": "/mcp/messages"}, None, None)
-        assert inner_called == ["websocket"]
-        await engine.dispose()
-
-
-# ---------------------------------------------------------------------------
-# middleware.py — missing user record (line 135-137)
-# ---------------------------------------------------------------------------
-
-
-class TestMiddlewareMissingUser:
-    @pytest.mark.asyncio
-    async def test_missing_user_returns_401(self) -> None:
-        """OAuth session exists but its user_id doesn't match any User row."""
-        from httpx import ASGITransport, AsyncClient
-        from starlette.applications import Starlette
-        from starlette.responses import PlainTextResponse
-        from starlette.routing import Route
-
-        ENCRYPTION_KEY = "JyU3hqD0bM06X5j88vekTdYHJJb5LxI1YWR0f55cw-c="
-        TOKEN = "bearer-orphan-session"
-        TOKEN_HASH = hashlib.sha256(TOKEN.encode()).hexdigest()
-
-        engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-
-        # Insert an OAuthSession that points to a non-existent user
-        nonexistent_user_id = uuid.uuid4()
-        orphan_session = OAuthSession(
-            id=uuid.uuid4(),
-            user_id=nonexistent_user_id,
-            chatgpt_access_token_hash=TOKEN_HASH,
-            expires_at=datetime.now(UTC) + timedelta(hours=1),
-        )
-        async with factory() as db:
-            db.add(orphan_session)
-            await db.commit()
-
-        async def handler(request):
-            return PlainTextResponse("ok")
-
-        backend = Starlette(routes=[Route("/mcp/test", handler)])
-        mw = BearerTokenMiddleware(
-            backend,
-            session_factory=factory,
-            token_encryption_key=ENCRYPTION_KEY,
-            pco_client_id="cid",
-            pco_client_secret="csecret",
-            mcp_path_prefix="/mcp",
-        )
-
-        async with AsyncClient(transport=ASGITransport(app=mw), base_url="http://test") as client:
-            resp = await client.get("/mcp/test", headers={"Authorization": f"Bearer {TOKEN}"})
-
-        assert resp.status_code == 401
-        assert "not found" in resp.json()["error"].lower()
-        await engine.dispose()
-
-
-# ---------------------------------------------------------------------------
-# middleware.py — PCO token refresh failure (lines 162-168)
-# ---------------------------------------------------------------------------
-
-
-class TestMiddlewareRefreshFailure:
-    @pytest.mark.asyncio
-    async def test_refresh_failure_returns_401(self) -> None:
-        from httpx import ASGITransport, AsyncClient
-        from starlette.applications import Starlette
-        from starlette.responses import PlainTextResponse
-        from starlette.routing import Route
-
-        ENCRYPTION_KEY = "JyU3hqD0bM06X5j88vekTdYHJJb5LxI1YWR0f55cw-c="
-        TOKEN = "bearer-refresh-fail"
-        TOKEN_HASH = hashlib.sha256(TOKEN.encode()).hexdigest()
-
-        engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-
-        near_expiry = datetime.now(UTC) + timedelta(minutes=1)  # within 5-minute buffer
-        user = User(
-            id=uuid.uuid4(),
-            pco_person_id=999,
-            pco_org_name="Fail Church",
-            pco_access_token_enc=encrypt_token("old-access", ENCRYPTION_KEY),
-            pco_refresh_token_enc=encrypt_token("old-refresh", ENCRYPTION_KEY),
-            pco_token_expires_at=near_expiry,
-        )
-        session_row = OAuthSession(
-            id=uuid.uuid4(),
-            user_id=user.id,
-            chatgpt_access_token_hash=TOKEN_HASH,
-            expires_at=datetime.now(UTC) + timedelta(hours=1),
-        )
-        async with factory() as db:
-            db.add(user)
-            db.add(session_row)
-            await db.commit()
-
-        async def handler(request):
-            return PlainTextResponse("ok")
-
-        backend = Starlette(routes=[Route("/mcp/test", handler)])
-        mw = BearerTokenMiddleware(
-            backend,
-            session_factory=factory,
-            token_encryption_key=ENCRYPTION_KEY,
-            pco_client_id="cid",
-            pco_client_secret="csecret",
-            mcp_path_prefix="/mcp",
-        )
-
-        with patch(
-            "pco_mcp.middleware.refresh_pco_token",
-            new=AsyncMock(side_effect=RuntimeError("network error")),
-        ):
-            async with AsyncClient(
-                transport=ASGITransport(app=mw), base_url="http://test"
-            ) as client:
-                resp = await client.get(
-                    "/mcp/test", headers={"Authorization": f"Bearer {TOKEN}"}
-                )
-
-        assert resp.status_code == 401
-        assert "refresh" in resp.json()["error"].lower() or "reconnect" in resp.json()["error"].lower()
-        await engine.dispose()
-
-
-# ---------------------------------------------------------------------------
-# middleware.py — token refresh without new refresh_token in response (line 153)
-# ---------------------------------------------------------------------------
-
-
-class TestMiddlewareRefreshNoNewRefreshToken:
-    @pytest.mark.asyncio
-    async def test_refresh_uses_old_refresh_token_when_not_returned(self) -> None:
-        from httpx import ASGITransport, AsyncClient
-        from starlette.applications import Starlette
-        from starlette.responses import PlainTextResponse
-        from starlette.routing import Route
-
-        ENCRYPTION_KEY = "JyU3hqD0bM06X5j88vekTdYHJJb5LxI1YWR0f55cw-c="
-        TOKEN = "bearer-no-new-refresh"
-        TOKEN_HASH = hashlib.sha256(TOKEN.encode()).hexdigest()
-
-        engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-
-        near_expiry = datetime.now(UTC) + timedelta(minutes=1)
-        user = User(
-            id=uuid.uuid4(),
-            pco_person_id=777,
-            pco_org_name="No New Refresh Church",
-            pco_access_token_enc=encrypt_token("old-access", ENCRYPTION_KEY),
-            pco_refresh_token_enc=encrypt_token("old-refresh", ENCRYPTION_KEY),
-            pco_token_expires_at=near_expiry,
-        )
-        session_row = OAuthSession(
-            id=uuid.uuid4(),
-            user_id=user.id,
-            chatgpt_access_token_hash=TOKEN_HASH,
-            expires_at=datetime.now(UTC) + timedelta(hours=1),
-        )
-        async with factory() as db:
-            db.add(user)
-            db.add(session_row)
-            await db.commit()
-
-        # Response without refresh_token — exercises the .get("refresh_token", refresh_token) fallback
-        new_token_data = {"access_token": "new-access-token"}  # no refresh_token key
-
-        async def handler(request):
-            return PlainTextResponse("ok")
-
-        backend = Starlette(routes=[Route("/mcp/test", handler)])
-        mw = BearerTokenMiddleware(
-            backend,
-            session_factory=factory,
-            token_encryption_key=ENCRYPTION_KEY,
-            pco_client_id="cid",
-            pco_client_secret="csecret",
-            mcp_path_prefix="/mcp",
-        )
-
-        with (
-            patch(
-                "pco_mcp.middleware.refresh_pco_token",
-                new=AsyncMock(return_value=new_token_data),
-            ),
-            patch("pco_mcp.middleware.set_pco_client"),
-        ):
-            async with AsyncClient(
-                transport=ASGITransport(app=mw), base_url="http://test"
-            ) as client:
-                resp = await client.get(
-                    "/mcp/test", headers={"Authorization": f"Bearer {TOKEN}"}
-                )
-
-        assert resp.status_code == 200
-        await engine.dispose()
 
 
 # ---------------------------------------------------------------------------
@@ -359,12 +88,11 @@ class TestPCOClientGetAllMaxPages:
         def handler(request: httpx.Request) -> httpx.Response:
             nonlocal call_count
             call_count += 1
-            # Has next link but no meta.next.offset
             return httpx.Response(
                 200,
                 json={
                     "data": [{"id": "1"}],
-                    "meta": {},  # no "next" key
+                    "meta": {},
                     "links": {"next": "https://api.planningcenteronline.com/people?offset=1"},
                 },
             )
@@ -372,7 +100,6 @@ class TestPCOClientGetAllMaxPages:
         client = PCOClient(base_url="https://api.planningcenteronline.com", access_token="t")
         client._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
         results = await client.get_all("/people/v2/people")
-        # Should stop after 1 page since next_offset is None
         assert len(results) == 1
         assert call_count == 1
 
@@ -385,7 +112,6 @@ class TestPCOClientGetAllMaxPages:
 class TestPCOClientRateLimitWarning:
     @pytest.mark.asyncio
     async def test_low_rate_limit_remaining_logs_warning(self) -> None:
-        """X-RateLimit-Remaining < 10 should trigger a warning log."""
         client = PCOClient(base_url="https://api.planningcenteronline.com", access_token="t")
         client._client = httpx.AsyncClient(
             transport=httpx.MockTransport(
@@ -396,15 +122,12 @@ class TestPCOClientRateLimitWarning:
                 )
             )
         )
-        import logging
-
         with patch("pco_mcp.pco.client.logger") as mock_logger:
             await client.get("/people/v2/people")
             mock_logger.warning.assert_called()
 
     @pytest.mark.asyncio
     async def test_invalid_rate_limit_remaining_does_not_raise(self) -> None:
-        """Non-integer X-RateLimit-Remaining should be silently ignored."""
         client = PCOClient(base_url="https://api.planningcenteronline.com", access_token="t")
         client._client = httpx.AsyncClient(
             transport=httpx.MockTransport(
@@ -415,7 +138,6 @@ class TestPCOClientRateLimitWarning:
                 )
             )
         )
-        # Should not raise
         result = await client.get("/people/v2/people")
         assert result == {"data": []}
 
@@ -428,7 +150,6 @@ class TestPCOClientRateLimitWarning:
 class TestPCOClientExtractErrorDetail:
     @pytest.mark.asyncio
     async def test_non_json_error_response_returns_http_status(self) -> None:
-        """When the error body isn't JSON, detail should be 'HTTP <status>'."""
         client = PCOClient(base_url="https://api.planningcenteronline.com", access_token="t")
         client._client = httpx.AsyncClient(
             transport=httpx.MockTransport(
@@ -443,7 +164,6 @@ class TestPCOClientExtractErrorDetail:
 
     @pytest.mark.asyncio
     async def test_json_error_with_no_errors_key_returns_http_status(self) -> None:
-        """JSON body with no 'errors' key should fall through to 'HTTP <status>'."""
         client = PCOClient(base_url="https://api.planningcenteronline.com", access_token="t")
         client._client = httpx.AsyncClient(
             transport=httpx.MockTransport(
@@ -458,14 +178,13 @@ class TestPCOClientExtractErrorDetail:
 
 
 # ---------------------------------------------------------------------------
-# oauth/pco_client.py — without http_client (auto-close paths, lines 39-40, 69-70, 96-97)
+# oauth/pco_client.py — without http_client (auto-close paths)
 # ---------------------------------------------------------------------------
 
 
 class TestOAuthPcoClientAutoClose:
     @pytest.mark.asyncio
     async def test_exchange_pco_code_creates_and_closes_client(self) -> None:
-        """When no http_client is passed, a new client is created and closed."""
         with patch("httpx.AsyncClient") as mock_cls:
             mock_instance = AsyncMock()
             mock_instance.post = AsyncMock(
@@ -488,7 +207,6 @@ class TestOAuthPcoClientAutoClose:
 
     @pytest.mark.asyncio
     async def test_get_pco_me_creates_and_closes_client(self) -> None:
-        """When no http_client is passed to get_pco_me, a new client is created and closed."""
         with patch("httpx.AsyncClient") as mock_cls:
             mock_instance = AsyncMock()
             mock_instance.get = AsyncMock(
@@ -514,7 +232,6 @@ class TestOAuthPcoClientAutoClose:
 
     @pytest.mark.asyncio
     async def test_refresh_pco_token_creates_and_closes_client(self) -> None:
-        """When no http_client is passed to refresh_pco_token, a new client is created and closed."""
         with patch("httpx.AsyncClient") as mock_cls:
             mock_instance = AsyncMock()
             mock_instance.post = AsyncMock(
@@ -534,7 +251,7 @@ class TestOAuthPcoClientAutoClose:
 
 
 # ---------------------------------------------------------------------------
-# oauth/pco_client.py — error paths (lines 55-56, 92)
+# oauth/pco_client.py — error paths
 # ---------------------------------------------------------------------------
 
 
@@ -560,7 +277,7 @@ class TestOAuthPcoClientErrors:
 
 
 # ---------------------------------------------------------------------------
-# main.py — health check DB error (lines 71-72)
+# main.py — health check DB error
 # ---------------------------------------------------------------------------
 
 
@@ -581,110 +298,13 @@ class TestMainHealthDBError:
 
 
 # ---------------------------------------------------------------------------
-# oauth/provider.py — direct flow callback (lines 195-202)
-# ---------------------------------------------------------------------------
-
-
-class TestOAuthProviderDirectFlow:
-    def test_callback_direct_flow_redirects_to_dashboard(self) -> None:
-        from fastapi import FastAPI
-        from fastapi.testclient import TestClient
-
-        from pco_mcp.oauth.provider import (
-            _pending_auth_codes,
-            _registered_clients,
-            create_oauth_router,
-        )
-
-        _pending_auth_codes.clear()
-        _registered_clients.clear()
-
-        session = AsyncMock()
-        session.__aenter__ = AsyncMock(return_value=session)
-        session.__aexit__ = AsyncMock(return_value=None)
-        factory = MagicMock(return_value=session)
-
-        FERNET_KEY = "qf3WS_ifAWXQ6Pve5_lRuNIcyDstvOGlYN8EvHSfAzE="
-
-        app = FastAPI()
-        router = create_oauth_router(
-            session_factory=factory,
-            pco_client_id="test-pco-client",
-            pco_client_secret="test-pco-secret",
-            base_url="https://pco-mcp.example.com",
-            token_encryption_key=FERNET_KEY,
-        )
-        app.include_router(router, prefix="/oauth")
-        client = TestClient(app, raise_server_exceptions=True)
-
-        # Pre-populate a pending state for the "direct" flow
-        internal_state = "direct-flow-state-xyz"
-        _pending_auth_codes[internal_state] = {
-            "flow": "direct",
-            "chatgpt_client_id": "test-client",
-            "chatgpt_redirect_uri": "https://chatgpt.com/callback",
-            "chatgpt_state": "some-state",
-            "code_challenge": "",
-            "code_challenge_method": "",
-        }
-
-        fake_tokens = {
-            "access_token": "pco-access",
-            "refresh_token": "pco-refresh",
-            "expires_in": 7200,
-        }
-        fake_me = {"id": 55, "first_name": "Direct", "last_name": "User", "org_name": "DirectChurch"}
-
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = None
-        session.execute = AsyncMock(return_value=mock_result)
-        session.add = MagicMock()
-        session.commit = AsyncMock()
-
-        fake_user = MagicMock()
-        fake_user.id = uuid.uuid4()
-        fake_user.pco_org_name = "DirectChurch"
-        session.refresh = AsyncMock(
-            side_effect=lambda u: (
-                setattr(u, "id", fake_user.id) or setattr(u, "pco_org_name", "DirectChurch")
-            )
-        )
-
-        with (
-            patch(
-                "pco_mcp.oauth.pco_client.exchange_pco_code",
-                new=AsyncMock(return_value=fake_tokens),
-            ),
-            patch(
-                "pco_mcp.oauth.pco_client.get_pco_me",
-                new=AsyncMock(return_value=fake_me),
-            ),
-        ):
-            resp = client.get(
-                "/oauth/pco-callback",
-                params={"code": "pco-auth-code", "state": internal_state},
-                follow_redirects=False,
-            )
-
-        # Direct flow should redirect to /dashboard
-        assert resp.status_code in (302, 307)
-        location = resp.headers["location"]
-        assert "dashboard" in location
-        assert "token=" in location
-
-        _pending_auth_codes.clear()
-        _registered_clients.clear()
-
-
-# ---------------------------------------------------------------------------
-# pco/people.py — both email and phone warning (lines 23-24)
+# pco/people.py — both email and phone warning
 # ---------------------------------------------------------------------------
 
 
 class TestPeopleAPIEmailAndPhoneWarning:
     @pytest.mark.asyncio
     async def test_search_people_warns_when_email_and_phone_both_provided(self) -> None:
-        """When both email and phone are given, a warning is issued."""
         mock_client = AsyncMock(spec=PCOClient)
         mock_client.get = AsyncMock(return_value={"data": []})
         api = PeopleAPI(mock_client)
@@ -700,14 +320,13 @@ class TestPeopleAPIEmailAndPhoneWarning:
 
 
 # ---------------------------------------------------------------------------
-# tools/people.py — update_person with email field (line 97)
+# tools/people.py — update_person with email field
 # ---------------------------------------------------------------------------
 
 
 class TestToolsPeopleUpdatePersonEmail:
     @pytest.mark.asyncio
     async def test_update_person_passes_email_field(self) -> None:
-        """When email is provided to update_person, it is passed to the API."""
         from pco_mcp.pco.people import PeopleAPI
 
         mock_client = AsyncMock(spec=PCOClient)
@@ -732,3 +351,123 @@ class TestToolsPeopleUpdatePersonEmail:
         payload = call_kwargs[1]["data"] if "data" in call_kwargs[1] else call_kwargs[0][1]
         assert "email" in payload["data"]["attributes"]
         assert result["id"] == "42"
+
+
+# ---------------------------------------------------------------------------
+# auth.py — PCOTokenVerifier tests
+# ---------------------------------------------------------------------------
+
+
+class TestPCOTokenVerifier:
+    @pytest.mark.asyncio
+    async def test_verify_token_success(self) -> None:
+        from pco_mcp.auth import PCOTokenVerifier
+
+        pco_me_response = {
+            "data": {
+                "id": "123",
+                "attributes": {"first_name": "Test", "last_name": "User"},
+            },
+            "meta": {"parent": {"attributes": {"name": "Test Church"}}},
+        }
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(200, json=pco_me_response)
+        )
+        async with httpx.AsyncClient(transport=transport) as client:
+            verifier = PCOTokenVerifier(http_client=client)
+            result = await verifier.verify_token("valid-token")
+
+        assert result is not None
+        assert result.token == "valid-token"
+        assert result.client_id == "123"
+        assert "people" in result.scopes
+        assert "services" in result.scopes
+
+    @pytest.mark.asyncio
+    async def test_verify_token_failure_401(self) -> None:
+        from pco_mcp.auth import PCOTokenVerifier
+
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(401, json={"error": "unauthorized"})
+        )
+        async with httpx.AsyncClient(transport=transport) as client:
+            verifier = PCOTokenVerifier(http_client=client)
+            result = await verifier.verify_token("bad-token")
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_verify_token_network_error(self) -> None:
+        from pco_mcp.auth import PCOTokenVerifier
+
+        def raise_error(request):
+            raise httpx.ConnectError("network down")
+
+        transport = httpx.MockTransport(raise_error)
+        async with httpx.AsyncClient(transport=transport) as client:
+            verifier = PCOTokenVerifier(http_client=client)
+            result = await verifier.verify_token("any-token")
+
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# auth.py — PCOProvider instantiation
+# ---------------------------------------------------------------------------
+
+
+class TestPCOProvider:
+    def test_provider_initializes(self) -> None:
+        from pco_mcp.auth import PCOProvider
+
+        provider = PCOProvider(
+            client_id="test-id",
+            client_secret="test-secret",
+            base_url="https://pco-mcp.test",
+        )
+        assert provider is not None
+
+
+# ---------------------------------------------------------------------------
+# oauth/provider.py — dashboard flow helpers
+# ---------------------------------------------------------------------------
+
+
+class TestOAuthProviderHelpers:
+    def test_create_direct_auth_state(self) -> None:
+        from pco_mcp.oauth.provider import create_direct_auth_state
+
+        url = create_direct_auth_state(
+            pco_client_id="test-id",
+            base_url="https://pco-mcp.test",
+        )
+        assert "api.planningcenteronline.com/oauth/authorize" in url
+        assert "client_id=test-id" in url
+        assert "state=" in url
+
+    def test_redeem_dashboard_token_valid(self) -> None:
+        from pco_mcp.oauth.provider import _pending_auth_codes, redeem_dashboard_token
+
+        _pending_auth_codes["tok123"] = {
+            "user_id": "abc",
+            "org_name": "Church",
+            "type": "dashboard_token",
+        }
+        result = redeem_dashboard_token("tok123")
+        assert result is not None
+        assert result["org_name"] == "Church"
+
+    def test_redeem_dashboard_token_invalid(self) -> None:
+        from pco_mcp.oauth.provider import redeem_dashboard_token
+
+        result = redeem_dashboard_token("nonexistent")
+        assert result is None
+
+    def test_redeem_dashboard_token_wrong_type(self) -> None:
+        from pco_mcp.oauth.provider import _pending_auth_codes, redeem_dashboard_token
+
+        _pending_auth_codes["tok456"] = {
+            "flow": "direct",
+        }
+        result = redeem_dashboard_token("tok456")
+        assert result is None
