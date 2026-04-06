@@ -100,6 +100,7 @@ def create_app() -> FastAPI:
     base = settings.base_url.rstrip("/")
 
     @app.get("/.well-known/oauth-authorization-server")
+    @app.get("/.well-known/openid-configuration")
     async def oauth_discovery(request: Request) -> JSONResponse:
         return JSONResponse({
             "issuer": base,
