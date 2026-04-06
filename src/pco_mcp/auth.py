@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import Request
+from fastapi.responses import JSONResponse
 from fastmcp.server.auth.auth import AccessToken
 from fastmcp.server.dependencies import AuthenticatedUser
 
@@ -38,7 +39,12 @@ async def inject_pco_bearer(
             # Check expiry
             expires = token_data.get("expires")
             if expires and expires < datetime.now(UTC):
-                logger.debug("Bearer token expired")
+                logger.warning("Bearer token expired")
+                response = JSONResponse(
+                    {"error": "Session expired. Please reconnect."},
+                    status_code=401,
+                )
+                return response
             else:
                 pco_access_token = token_data.get("pco_access_token")
                 if pco_access_token:

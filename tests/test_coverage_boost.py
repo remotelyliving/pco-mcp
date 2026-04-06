@@ -445,7 +445,9 @@ class TestInjectPcoBearerMiddleware:
 
         with TestClient(app) as client:
             resp = client.get("/check", headers={"Authorization": "Bearer expired-tok"})
-        assert resp.json()["has_user"] is False
+        # Expired tokens now return an explicit 401 instead of silently passing through
+        assert resp.status_code == 401
+        assert "expired" in resp.json()["error"].lower()
 
 
 # ---------------------------------------------------------------------------

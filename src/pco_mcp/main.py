@@ -5,6 +5,8 @@ Implements the OAuth layer as plain FastAPI routes (matching the proven
 ChatGPT-compatible pattern from adamgivon/chatgpt-custom-mcp-for-local-files)
 and mounts the FastMCP transport separately at /mcp.
 """
+import base64
+import hashlib
 import logging
 import secrets
 from collections.abc import AsyncGenerator
@@ -46,6 +48,11 @@ def create_app() -> FastAPI:
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     )
     settings = Settings()
+
+    from pco_mcp.tools._context import configure as configure_context  # noqa: PLC0415
+
+    configure_context(settings)
+
     engine = create_engine(settings)
     session_factory = create_session_factory(engine)
 
@@ -175,6 +182,11 @@ def create_app() -> FastAPI:
         if client_id not in registered_clients:
             raise HTTPException(status_code=400, detail="Invalid client_id")
 
+        client_data = registered_clients[client_id]
+        if redirect_uris := client_data.get("redirect_uris"):
+            if redirect_uri not in redirect_uris:
+                raise HTTPException(status_code=400, detail="redirect_uri not registered for this client")
+
         # Generate a random internal state to track this flow
         internal_state = secrets.token_urlsafe(32)
         oauth_codes[internal_state] = {
@@ -182,6 +194,8 @@ def create_app() -> FastAPI:
             "client_id": client_id,
             "redirect_uri": redirect_uri,
             "chatgpt_state": state,
+            "code_challenge": code_challenge,
+            "code_challenge_method": code_challenge_method,
             "expires": datetime.now(UTC) + timedelta(minutes=10),
         }
 
@@ -266,6 +280,8 @@ def create_app() -> FastAPI:
             "pco_access_token": pco_access_token,
             "pco_refresh_token": pco_refresh_token,
             "pco_me": pco_me,
+            "code_challenge": pending.get("code_challenge"),
+            "code_challenge_method": pending.get("code_challenge_method"),
             "expires": datetime.now(UTC) + timedelta(minutes=10),
         }
 
@@ -286,6 +302,7 @@ def create_app() -> FastAPI:
         client_secret: str = Form(...),
         code: str | None = Form(None),
         refresh_token: str | None = Form(None),
+        code_verifier: str | None = Form(None),
     ) -> JSONResponse:
         # Validate client
         if client_id not in registered_clients:
@@ -301,6 +318,19 @@ def create_app() -> FastAPI:
                 raise HTTPException(status_code=400, detail="Invalid code")
             if code_data["expires"] < datetime.now(UTC):
                 raise HTTPException(status_code=400, detail="Code expired")
+            if code_data.get("client_id") != client_id:
+                raise HTTPException(status_code=400, detail="Code was not issued to this client")
+
+            # PKCE verification
+            stored_challenge = code_data.get("code_challenge") or ""
+            if stored_challenge:
+                if not code_verifier:
+                    raise HTTPException(status_code=400, detail="code_verifier required")
+                computed = base64.urlsafe_b64encode(
+                    hashlib.sha256(code_verifier.encode()).digest()
+                ).rstrip(b"=").decode()
+                if not secrets.compare_digest(computed, stored_challenge):
+                    raise HTTPException(status_code=400, detail="Invalid code_verifier")
 
             access_token = secrets.token_urlsafe(32)
             oauth_tokens[access_token] = {
@@ -317,17 +347,10 @@ def create_app() -> FastAPI:
             })
 
         if grant_type == "client_credentials":
-            # Minimal support for client_credentials (ChatGPT may probe this)
-            access_token = secrets.token_urlsafe(32)
-            oauth_tokens[access_token] = {
-                "pco_access_token": None,
-                "expires": datetime.now(UTC) + timedelta(hours=1),
-            }
-            return JSONResponse({
-                "access_token": access_token,
-                "token_type": "bearer",
-                "expires_in": 3600,
-            })
+            raise HTTPException(
+                status_code=400,
+                detail="client_credentials grant not supported. Use authorization_code.",
+            )
 
         raise HTTPException(status_code=400, detail="Unsupported grant type")
 

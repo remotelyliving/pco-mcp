@@ -4,6 +4,8 @@
 Covers: discovery, protected-resource, register, authorize, token,
 pco-callback (both ChatGPT and direct flows), and bearer middleware.
 """
+import base64
+import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
@@ -315,7 +317,7 @@ class TestOAuthToken:
         )
         assert resp.status_code == 400
 
-    def test_token_client_credentials_grant(self, client) -> None:
+    def test_token_client_credentials_grant_rejected(self, client) -> None:
         reg = _register_client(client)
         resp = client.post(
             "/oauth/token",
@@ -325,10 +327,8 @@ class TestOAuthToken:
                 "client_secret": reg["client_secret"],
             },
         )
-        assert resp.status_code == 200
-        body = resp.json()
-        assert "access_token" in body
-        assert body["token_type"] == "bearer"
+        assert resp.status_code == 400
+        assert "not supported" in resp.json()["detail"]
 
     def test_token_unsupported_grant_type(self, client) -> None:
         reg = _register_client(client)
@@ -543,3 +543,276 @@ class TestSecurityHeaders:
         assert resp.headers["X-Content-Type-Options"] == "nosniff"
         assert resp.headers["X-Frame-Options"] == "DENY"
         assert resp.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+
+
+# =========================================================================
+# Fix C2: redirect_uri validation
+# =========================================================================
+
+
+class TestRedirectUriValidation:
+    def test_authorize_rejects_unregistered_redirect_uri(self, client) -> None:
+        reg = _register_client(client)  # registered with https://example.com/cb
+        resp = client.get(
+            "/oauth/authorize",
+            params={
+                "client_id": reg["client_id"],
+                "redirect_uri": "https://evil.com/cb",
+            },
+            follow_redirects=False,
+        )
+        assert resp.status_code == 400
+        assert "redirect_uri not registered" in resp.json()["detail"]
+
+    def test_authorize_allows_registered_redirect_uri(self, client) -> None:
+        reg = _register_client(client)
+        resp = client.get(
+            "/oauth/authorize",
+            params={
+                "client_id": reg["client_id"],
+                "redirect_uri": "https://example.com/cb",
+            },
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+
+    def test_authorize_allows_any_uri_when_none_registered(self, client) -> None:
+        """Clients with no registered redirect_uris allow any URI."""
+        resp = client.post("/oauth/register", json={"redirect_uris": []})
+        reg = resp.json()
+        resp = client.get(
+            "/oauth/authorize",
+            params={
+                "client_id": reg["client_id"],
+                "redirect_uri": "https://anything.com/cb",
+            },
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+
+
+# =========================================================================
+# Fix C4: auth code bound to client_id
+# =========================================================================
+
+
+class TestAuthCodeClientBinding:
+    def test_token_rejects_code_for_different_client(self, client) -> None:
+        reg1 = _register_client(client)
+        reg2 = _register_client(client)
+        code = _seed_auth_code(reg1["client_id"])  # bound to reg1
+
+        resp = client.post(
+            "/oauth/token",
+            data={
+                "grant_type": "authorization_code",
+                "client_id": reg2["client_id"],  # wrong client
+                "client_secret": reg2["client_secret"],
+                "code": code,
+            },
+        )
+        assert resp.status_code == 400
+        assert "not issued to this client" in resp.json()["detail"]
+
+    def test_token_accepts_code_for_correct_client(self, client) -> None:
+        reg = _register_client(client)
+        code = _seed_auth_code(reg["client_id"])
+
+        resp = client.post(
+            "/oauth/token",
+            data={
+                "grant_type": "authorization_code",
+                "client_id": reg["client_id"],
+                "client_secret": reg["client_secret"],
+                "code": code,
+            },
+        )
+        assert resp.status_code == 200
+
+
+# =========================================================================
+# Fix I1: PKCE verification
+# =========================================================================
+
+
+def _pkce_pair() -> tuple[str, str]:
+    """Generate a PKCE code_verifier and code_challenge (S256)."""
+    verifier = secrets.token_urlsafe(32)
+    challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(verifier.encode()).digest()
+    ).rstrip(b"=").decode()
+    return verifier, challenge
+
+
+class TestPKCE:
+    def test_pkce_valid_verifier_succeeds(self, client) -> None:
+        from pco_mcp.main import oauth_codes
+
+        reg = _register_client(client)
+        verifier, challenge = _pkce_pair()
+
+        code = secrets.token_urlsafe(32)
+        oauth_codes[code] = {
+            "type": "auth_code",
+            "client_id": reg["client_id"],
+            "pco_access_token": "pco-test-token",
+            "pco_refresh_token": "pco-test-refresh",
+            "pco_me": {"id": 99},
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
+            "expires": datetime.now(UTC) + timedelta(minutes=10),
+        }
+
+        resp = client.post(
+            "/oauth/token",
+            data={
+                "grant_type": "authorization_code",
+                "client_id": reg["client_id"],
+                "client_secret": reg["client_secret"],
+                "code": code,
+                "code_verifier": verifier,
+            },
+        )
+        assert resp.status_code == 200
+
+    def test_pkce_missing_verifier_fails(self, client) -> None:
+        from pco_mcp.main import oauth_codes
+
+        reg = _register_client(client)
+        _, challenge = _pkce_pair()
+
+        code = secrets.token_urlsafe(32)
+        oauth_codes[code] = {
+            "type": "auth_code",
+            "client_id": reg["client_id"],
+            "pco_access_token": "pco-test-token",
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
+            "expires": datetime.now(UTC) + timedelta(minutes=10),
+        }
+
+        resp = client.post(
+            "/oauth/token",
+            data={
+                "grant_type": "authorization_code",
+                "client_id": reg["client_id"],
+                "client_secret": reg["client_secret"],
+                "code": code,
+                # no code_verifier
+            },
+        )
+        assert resp.status_code == 400
+        assert "code_verifier required" in resp.json()["detail"]
+
+    def test_pkce_wrong_verifier_fails(self, client) -> None:
+        from pco_mcp.main import oauth_codes
+
+        reg = _register_client(client)
+        _, challenge = _pkce_pair()
+
+        code = secrets.token_urlsafe(32)
+        oauth_codes[code] = {
+            "type": "auth_code",
+            "client_id": reg["client_id"],
+            "pco_access_token": "pco-test-token",
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
+            "expires": datetime.now(UTC) + timedelta(minutes=10),
+        }
+
+        resp = client.post(
+            "/oauth/token",
+            data={
+                "grant_type": "authorization_code",
+                "client_id": reg["client_id"],
+                "client_secret": reg["client_secret"],
+                "code": code,
+                "code_verifier": "wrong-verifier-value",
+            },
+        )
+        assert resp.status_code == 400
+        assert "Invalid code_verifier" in resp.json()["detail"]
+
+    def test_no_pkce_challenge_skips_verification(self, client) -> None:
+        """When no code_challenge was stored, PKCE is not enforced."""
+        reg = _register_client(client)
+        code = _seed_auth_code(reg["client_id"])  # no code_challenge
+
+        resp = client.post(
+            "/oauth/token",
+            data={
+                "grant_type": "authorization_code",
+                "client_id": reg["client_id"],
+                "client_secret": reg["client_secret"],
+                "code": code,
+            },
+        )
+        assert resp.status_code == 200
+
+
+# =========================================================================
+# Fix I2: explicit 401 on expired bearer tokens
+# =========================================================================
+
+
+class TestExpiredBearerToken:
+    def test_expired_bearer_returns_401(self, client) -> None:
+        from pco_mcp.main import oauth_tokens
+
+        expired_token = secrets.token_urlsafe(32)
+        oauth_tokens[expired_token] = {
+            "pco_access_token": "pco-tok",
+            "pco_me": {"id": 1},
+            "expires": datetime.now(UTC) - timedelta(hours=1),
+        }
+
+        resp = client.get(
+            "/health",
+            headers={"Authorization": f"Bearer {expired_token}"},
+        )
+        assert resp.status_code == 401
+        assert "expired" in resp.json()["error"].lower()
+
+    def test_valid_bearer_passes_through(self, client) -> None:
+        from pco_mcp.main import oauth_tokens
+
+        valid_token = secrets.token_urlsafe(32)
+        oauth_tokens[valid_token] = {
+            "pco_access_token": "pco-tok",
+            "pco_me": {"id": 1},
+            "expires": datetime.now(UTC) + timedelta(hours=1),
+        }
+
+        resp = client.get(
+            "/health",
+            headers={"Authorization": f"Bearer {valid_token}"},
+        )
+        assert resp.status_code == 200
+
+
+# =========================================================================
+# Fix I3: client_credentials rejected
+# =========================================================================
+
+
+class TestClientCredentialsRejected:
+    def test_client_credentials_returns_400_with_message(self, client) -> None:
+        reg = _register_client(client)
+        resp = client.post(
+            "/oauth/token",
+            data={
+                "grant_type": "client_credentials",
+                "client_id": reg["client_id"],
+                "client_secret": reg["client_secret"],
+            },
+        )
+        assert resp.status_code == 400
+        detail = resp.json()["detail"]
+        assert "client_credentials" in detail
+        assert "authorization_code" in detail.lower() or "Use authorization_code" in detail
+
+    def test_discovery_still_lists_client_credentials(self, client) -> None:
+        """Keep in metadata for ChatGPT compatibility."""
+        resp = client.get("/.well-known/oauth-authorization-server")
+        body = resp.json()
+        assert "client_credentials" in body["grant_types_supported"]
