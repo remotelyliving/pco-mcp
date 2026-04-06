@@ -207,7 +207,9 @@ def create_app() -> FastAPI:
     # ------------------------------------------------------------------
     @app.middleware("http")
     async def bearer_middleware(request: Request, call_next):  # type: ignore[misc]
-        response = await inject_pco_bearer(request, call_next, oauth_tokens)
+        response = await inject_pco_bearer(
+            request, call_next, oauth_tokens, session_factory, settings
+        )
         # Security headers on every response
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"

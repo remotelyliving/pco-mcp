@@ -26,19 +26,22 @@ class PCORateLimitError(PCOAPIError):
 class PCOClient:
     """Async HTTP client for the Planning Center Online API."""
 
-    def __init__(self, base_url: str, access_token: str) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        access_token: str,
+        http_client: httpx.AsyncClient | None = None,
+    ) -> None:
         self._base_url = base_url.rstrip("/")
         self._access_token = access_token
-        self._client = httpx.AsyncClient(
-            headers={
-                "Authorization": f"Bearer {self._access_token}",
-                "Content-Type": "application/json",
-            },
+        self._owns_client = http_client is None
+        self._client = http_client or httpx.AsyncClient(
             timeout=httpx.Timeout(10.0),
         )
 
     async def close(self) -> None:
-        await self._client.aclose()
+        if self._owns_client:
+            await self._client.aclose()
 
     def _url(self, path: str) -> str:
         """Build a full URL from a relative path."""
