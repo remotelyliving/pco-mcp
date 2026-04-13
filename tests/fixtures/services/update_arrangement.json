@@ -1,0 +1,17 @@
+{
+    "data": {
+        "type": "Arrangement",
+        "id": "1001",
+        "attributes": {
+            "name": "Standard",
+            "bpm": 80.0,
+            "length": 240,
+            "meter": "4/4",
+            "chord_chart": "[A]Amazing [D]grace",
+            "chord_chart_key": "A",
+            "notes": "Updated key",
+            "sequence": ["Verse 1", "Chorus", "Verse 2"],
+            "lyrics": "Amazing grace"
+        }
+    }
+}

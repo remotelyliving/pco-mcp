@@ -410,3 +410,75 @@ class TestDeleteSong:
         mock_client.delete.assert_called_once()
         call_path = mock_client.delete.call_args.args[0]
         assert "4001" in call_path
+
+
+class TestCreateArrangement:
+    async def test_returns_created_arrangement(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("create_arrangement.json")
+        api = ServicesAPI(mock_client)
+        arr = await api.create_arrangement(
+            song_id="4001", name="Default Arrangement", chord_chart="[G]Amazing [C]grace"
+        )
+        assert arr["id"] == "1010"
+        assert arr["name"] == "Default Arrangement"
+        assert arr["chord_chart_key"] == "G"
+        assert arr["chord_chart"] == "[G]Amazing [C]grace, how [G]sweet the sound"
+
+    async def test_sends_correct_payload(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("create_arrangement.json")
+        api = ServicesAPI(mock_client)
+        await api.create_arrangement(
+            song_id="4001",
+            name="Default Arrangement",
+            chord_chart="[G]Amazing",
+            bpm=120.0,
+            meter="4/4",
+            chord_chart_key="G",
+            sequence=["Verse 1", "Chorus"],
+        )
+        call_path = mock_client.post.call_args.args[0]
+        assert "4001" in call_path
+        assert "arrangements" in call_path
+        data = mock_client.post.call_args.kwargs["data"]
+        attrs = data["data"]["attributes"]
+        assert attrs["name"] == "Default Arrangement"
+        assert attrs["bpm"] == 120.0
+        assert attrs["sequence"] == ["Verse 1", "Chorus"]
+
+    async def test_only_required_fields(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("create_arrangement.json")
+        api = ServicesAPI(mock_client)
+        await api.create_arrangement(song_id="4001", name="Default")
+        data = mock_client.post.call_args.kwargs["data"]
+        attrs = data["data"]["attributes"]
+        assert attrs["name"] == "Default"
+        assert "bpm" not in attrs
+
+
+class TestUpdateArrangement:
+    async def test_returns_updated_arrangement(self, mock_client: AsyncMock) -> None:
+        mock_client.patch.return_value = load_fixture("update_arrangement.json")
+        api = ServicesAPI(mock_client)
+        arr = await api.update_arrangement("4001", "1001", bpm=80.0, chord_chart_key="A")
+        assert arr["bpm"] == 80.0
+        assert arr["chord_chart_key"] == "A"
+
+    async def test_sends_patch_to_correct_endpoint(self, mock_client: AsyncMock) -> None:
+        mock_client.patch.return_value = load_fixture("update_arrangement.json")
+        api = ServicesAPI(mock_client)
+        await api.update_arrangement("4001", "1001", bpm=80.0)
+        call_path = mock_client.patch.call_args.args[0]
+        assert "4001" in call_path
+        assert "1001" in call_path
+        assert "arrangements" in call_path
+
+
+class TestDeleteArrangement:
+    async def test_calls_delete(self, mock_client: AsyncMock) -> None:
+        mock_client.delete.return_value = None
+        api = ServicesAPI(mock_client)
+        await api.delete_arrangement("4001", "1001")
+        mock_client.delete.assert_called_once()
+        call_path = mock_client.delete.call_args.args[0]
+        assert "4001" in call_path
+        assert "1001" in call_path

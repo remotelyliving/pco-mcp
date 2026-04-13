@@ -267,6 +267,83 @@ class ServicesAPI:
         )
         return [self._simplify_arrangement(a) for a in result.get("data", [])]
 
+    async def create_arrangement(
+        self,
+        song_id: str,
+        name: str,
+        chord_chart: str | None = None,
+        bpm: float | None = None,
+        meter: str | None = None,
+        length: int | None = None,
+        chord_chart_key: str | None = None,
+        sequence: list[str] | None = None,
+        notes: str | None = None,
+    ) -> dict[str, Any]:
+        """Create an arrangement for a song."""
+        attributes: dict[str, Any] = {"name": name}
+        if chord_chart is not None:
+            attributes["chord_chart"] = chord_chart
+        if bpm is not None:
+            attributes["bpm"] = bpm
+        if meter is not None:
+            attributes["meter"] = meter
+        if length is not None:
+            attributes["length"] = length
+        if chord_chart_key is not None:
+            attributes["chord_chart_key"] = chord_chart_key
+        if sequence is not None:
+            attributes["sequence"] = sequence
+        if notes is not None:
+            attributes["notes"] = notes
+        payload: dict[str, Any] = {"data": {"type": "Arrangement", "attributes": attributes}}
+        result = await self._client.post(
+            f"/services/v2/songs/{song_id}/arrangements", data=payload
+        )
+        return self._simplify_arrangement_full(result["data"])
+
+    async def update_arrangement(
+        self,
+        song_id: str,
+        arrangement_id: str,
+        name: str | None = None,
+        chord_chart: str | None = None,
+        bpm: float | None = None,
+        meter: str | None = None,
+        length: int | None = None,
+        chord_chart_key: str | None = None,
+        sequence: list[str] | None = None,
+        notes: str | None = None,
+    ) -> dict[str, Any]:
+        """Update an arrangement."""
+        attributes: dict[str, Any] = {}
+        if name is not None:
+            attributes["name"] = name
+        if chord_chart is not None:
+            attributes["chord_chart"] = chord_chart
+        if bpm is not None:
+            attributes["bpm"] = bpm
+        if meter is not None:
+            attributes["meter"] = meter
+        if length is not None:
+            attributes["length"] = length
+        if chord_chart_key is not None:
+            attributes["chord_chart_key"] = chord_chart_key
+        if sequence is not None:
+            attributes["sequence"] = sequence
+        if notes is not None:
+            attributes["notes"] = notes
+        payload: dict[str, Any] = {"data": {"type": "Arrangement", "attributes": attributes}}
+        result = await self._client.patch(
+            f"/services/v2/songs/{song_id}/arrangements/{arrangement_id}", data=payload
+        )
+        return self._simplify_arrangement_full(result["data"])
+
+    async def delete_arrangement(self, song_id: str, arrangement_id: str) -> None:
+        """Delete an arrangement from a song."""
+        await self._client.delete(
+            f"/services/v2/songs/{song_id}/arrangements/{arrangement_id}"
+        )
+
     async def list_plan_templates(self, service_type_id: str) -> list[dict[str, Any]]:
         """List plan templates for a service type."""
         result = await self._client.get(
@@ -395,6 +472,21 @@ class ServicesAPI:
             "bpm": attrs.get("bpm"),
             "length": attrs.get("length"),
             "meter": attrs.get("meter"),
+            "notes": attrs.get("notes"),
+        }
+
+    def _simplify_arrangement_full(self, raw: dict[str, Any]) -> dict[str, Any]:
+        attrs = raw.get("attributes", {})
+        return {
+            "id": raw["id"],
+            "name": attrs.get("name", ""),
+            "bpm": attrs.get("bpm"),
+            "length": attrs.get("length"),
+            "meter": attrs.get("meter"),
+            "chord_chart": attrs.get("chord_chart"),
+            "chord_chart_key": attrs.get("chord_chart_key"),
+            "lyrics": attrs.get("lyrics"),
+            "sequence": attrs.get("sequence"),
             "notes": attrs.get("notes"),
         }
 

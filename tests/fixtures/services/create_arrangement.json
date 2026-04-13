@@ -1,0 +1,17 @@
+{
+    "data": {
+        "type": "Arrangement",
+        "id": "1010",
+        "attributes": {
+            "name": "Default Arrangement",
+            "bpm": 120.0,
+            "length": 300,
+            "meter": "4/4",
+            "chord_chart": "[G]Amazing [C]grace, how [G]sweet the sound",
+            "chord_chart_key": "G",
+            "notes": "Standard version",
+            "sequence": ["Verse 1", "Chorus"],
+            "lyrics": "Amazing grace, how sweet the sound"
+        }
+    }
+}
