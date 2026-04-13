@@ -642,3 +642,50 @@ class TestUpdateMedia:
         call_path = mock_client.patch.call_args.args[0]
         assert "6001" in call_path
         assert "/media/" in call_path
+
+
+class TestGetCCLIReporting:
+    async def test_returns_ccli_data(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = load_fixture("get_ccli_reporting.json")
+        api = ServicesAPI(mock_client)
+        report = await api.get_ccli_reporting("201", "301", "501")
+        assert report["print_count"] == 5
+        assert report["digital_count"] == 12
+        assert report["recording_count"] == 2
+        assert report["translation_count"] == 0
+
+    async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = load_fixture("get_ccli_reporting.json")
+        api = ServicesAPI(mock_client)
+        await api.get_ccli_reporting("201", "301", "501")
+        call_path = mock_client.get.call_args.args[0]
+        assert "201" in call_path
+        assert "301" in call_path
+        assert "501" in call_path
+        assert "ccli_reporting" in call_path
+
+
+class TestFlagMissingCCLI:
+    async def test_returns_songs_without_ccli(self, mock_client: AsyncMock) -> None:
+        mock_client.get_all.return_value = (
+            load_fixture("list_songs_page1.json")["data"]
+            + load_fixture("list_songs_page2.json")["data"]
+        )
+        api = ServicesAPI(mock_client)
+        result = await api.flag_missing_ccli()
+        assert result["total_scanned"] == 4
+        assert result["total_missing"] == 2
+        missing_titles = [s["title"] for s in result["songs"]]
+        assert "How Great Is Our God" in missing_titles
+        assert "Custom Song" in missing_titles
+        assert "Amazing Grace" not in missing_titles
+
+    async def test_caps_at_200_songs(self, mock_client: AsyncMock) -> None:
+        mock_client.get_all.return_value = (
+            load_fixture("list_songs_page1.json")["data"]
+            + load_fixture("list_songs_page2.json")["data"]
+        )
+        api = ServicesAPI(mock_client)
+        await api.flag_missing_ccli()
+        call_kwargs = mock_client.get_all.call_args.kwargs
+        assert call_kwargs.get("max_pages", 50) <= 10

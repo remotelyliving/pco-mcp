@@ -1,0 +1,26 @@
+{
+    "data": [
+        {
+            "type": "Song",
+            "id": "4003",
+            "attributes": {
+                "title": "Oceans",
+                "author": "Hillsong UNITED",
+                "ccli_number": 6428767,
+                "last_scheduled_at": "2026-02-15T09:00:00Z"
+            }
+        },
+        {
+            "type": "Song",
+            "id": "4004",
+            "attributes": {
+                "title": "Custom Song",
+                "author": "Local Writer",
+                "ccli_number": null,
+                "last_scheduled_at": null
+            }
+        }
+    ],
+    "meta": {"total_count": 4, "count": 2},
+    "links": {}
+}

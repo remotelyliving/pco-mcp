@@ -463,6 +463,35 @@ class ServicesAPI:
         )
         return media_record
 
+    async def get_ccli_reporting(
+        self, service_type_id: str, plan_id: str, item_id: str
+    ) -> dict[str, Any]:
+        """Get CCLI reporting data for a plan item."""
+        result = await self._client.get(
+            f"/services/v2/service_types/{service_type_id}/plans/{plan_id}"
+            f"/items/{item_id}/ccli_reporting"
+        )
+        return self._simplify_ccli_reporting(result["data"])
+
+    async def flag_missing_ccli(self) -> dict[str, Any]:
+        """Scan the song library and return songs missing CCLI numbers.
+
+        Caps at ~200 songs to avoid excessive API calls.
+        """
+        all_songs = await self._client.get_all(
+            "/services/v2/songs", params={"per_page": 25}, max_pages=8
+        )
+        missing = []
+        for raw in all_songs:
+            attrs = raw.get("attributes", {})
+            if not attrs.get("ccli_number"):
+                missing.append(self._simplify_song(raw))
+        return {
+            "total_scanned": len(all_songs),
+            "total_missing": len(missing),
+            "songs": missing,
+        }
+
     async def list_media(self, media_type: str | None = None) -> list[dict[str, Any]]:
         """List org-level media items, optionally filtered by type."""
         params: dict[str, Any] = {}
@@ -656,4 +685,13 @@ class ServicesAPI:
             "team_position_name": attrs.get("team_position_name", ""),
             "quantity": attrs.get("quantity", 0),
             "scheduled_to": attrs.get("scheduled_to"),
+        }
+
+    def _simplify_ccli_reporting(self, raw: dict[str, Any]) -> dict[str, Any]:
+        attrs = raw.get("attributes", {})
+        return {
+            "print_count": attrs.get("print_count", 0),
+            "digital_count": attrs.get("digital_count", 0),
+            "recording_count": attrs.get("recording_count", 0),
+            "translation_count": attrs.get("translation_count", 0),
         }
