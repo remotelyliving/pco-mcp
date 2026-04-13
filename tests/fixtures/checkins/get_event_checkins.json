@@ -1,0 +1,7 @@
+{
+    "data": [
+        {"type": "CheckIn", "id": "501", "attributes": {"first_name": "Alice", "last_name": "Smith", "created_at": "2026-04-13T09:15:00Z", "security_code": "ABC123"}, "relationships": {"locations": {"data": [{"type": "Location", "id": "10"}]}}},
+        {"type": "CheckIn", "id": "502", "attributes": {"first_name": "Bob", "last_name": "Jones", "created_at": "2026-04-13T09:20:00Z", "security_code": "DEF456"}, "relationships": {"locations": {"data": [{"type": "Location", "id": "10"}]}}}
+    ],
+    "meta": {"total_count": 2, "count": 2}
+}
