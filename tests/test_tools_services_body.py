@@ -412,3 +412,93 @@ class TestListAttachmentsToolBody:
         attachments = await fn(song_id="4001", arrangement_id="1001")
         assert len(attachments) == 1
         assert attachments[0]["filename"] == "chart.pdf"
+
+
+class TestCreateMediaToolBody:
+    async def test_create_media(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = {
+            "data": {
+                "type": "Media",
+                "id": "6001",
+                "attributes": {
+                    "title": "Background",
+                    "media_type": "image",
+                    "thumbnail_url": None,
+                    "creator_name": "Admin",
+                },
+            },
+            "meta": {"upload": {"url": "https://s3.example.com/upload", "fields": {}}},
+        }
+        mock_client.patch.return_value = {
+            "data": {
+                "type": "Attachment",
+                "id": "6010",
+                "attributes": {
+                    "filename": "bg.jpg",
+                    "content_type": "image/jpeg",
+                    "file_size": 5000,
+                    "url": "https://cdn.example.com/bg.jpg",
+                },
+            }
+        }
+        mock_http = AsyncMock()
+        mock_fetch_response = AsyncMock()
+        mock_fetch_response.content = b"img-bytes"
+        mock_fetch_response.raise_for_status = lambda: None
+        mock_http.get.return_value = mock_fetch_response
+        mock_client._client = mock_http
+        mock_client.put_raw = AsyncMock()
+
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "create_media")
+        result = await fn(
+            title="Background",
+            media_type="image",
+            url="https://example.com/bg.jpg",
+            filename="bg.jpg",
+            content_type="image/jpeg",
+        )
+        assert result["id"] == "6001"
+
+
+class TestListMediaToolBody:
+    async def test_list_media(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = {
+            "data": [
+                {
+                    "type": "Media",
+                    "id": "6001",
+                    "attributes": {
+                        "title": "Background",
+                        "media_type": "image",
+                        "thumbnail_url": None,
+                        "creator_name": "Admin",
+                    },
+                }
+            ]
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "list_media")
+        media = await fn()
+        assert len(media) == 1
+        assert media[0]["title"] == "Background"
+
+
+class TestUpdateMediaToolBody:
+    async def test_update_media(self, mock_client: AsyncMock) -> None:
+        mock_client.patch.return_value = {
+            "data": {
+                "type": "Media",
+                "id": "6001",
+                "attributes": {
+                    "title": "New Title",
+                    "media_type": "image",
+                    "thumbnail_url": None,
+                    "creator_name": "Admin",
+                },
+            }
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "update_media")
+        result = await fn(media_id="6001", title="New Title")
+        assert result["title"] == "New Title"

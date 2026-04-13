@@ -406,3 +406,47 @@ def register_services_tools(mcp: FastMCP) -> None:
 
         api = get_services_api()
         return await safe_tool_call(api.list_attachments(song_id, arrangement_id))
+
+    @mcp.tool(annotations=WRITE_ANNOTATIONS)
+    async def create_media(
+        title: str,
+        media_type: str,
+        url: str,
+        filename: str,
+        content_type: str,
+        creator_name: str | None = None,
+    ) -> dict[str, Any]:
+        """Upload an org-level media item (background image, countdown video, bumper video).
+
+        media_type must be one of: 'image', 'video', 'countdown', 'document'.
+        Provide a publicly accessible URL — the server fetches and uploads to PCO.
+        """
+        from pco_mcp.tools._context import get_services_api, safe_tool_call
+
+        api = get_services_api()
+        return await safe_tool_call(
+            api.create_media(title, media_type, url, filename, content_type, creator_name)
+        )
+
+    @mcp.tool(annotations=READ_ANNOTATIONS)
+    async def list_media(media_type: str | None = None) -> list[dict[str, Any]]:
+        """List org-level media items (backgrounds, countdowns, videos). Optionally filter by type."""
+        from pco_mcp.tools._context import get_services_api, safe_tool_call
+
+        api = get_services_api()
+        return await safe_tool_call(api.list_media(media_type=media_type))
+
+    @mcp.tool(annotations=WRITE_ANNOTATIONS)
+    async def update_media(
+        media_id: str,
+        title: str | None = None,
+        themes: str | None = None,
+        creator_name: str | None = None,
+    ) -> dict[str, Any]:
+        """Update a media item's title, themes, or creator."""
+        from pco_mcp.tools._context import get_services_api, safe_tool_call
+
+        api = get_services_api()
+        return await safe_tool_call(
+            api.update_media(media_id, title=title, themes=themes, creator_name=creator_name)
+        )
