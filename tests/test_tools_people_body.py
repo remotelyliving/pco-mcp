@@ -304,6 +304,21 @@ class TestUpdateAddressToolBody:
         assert addr["street"] == "456 Oak Ave"
 
 
+class TestListPersonDetailsToolBody:
+    async def test_list_person_details(self, mock_client: AsyncMock) -> None:
+        mock_client.get.side_effect = [
+            {"data": [{"type": "Email", "id": "2001", "attributes": {"address": "a@b.com", "location": "Home", "primary": True}}]},
+            {"data": [{"type": "PhoneNumber", "id": "3001", "attributes": {"number": "555", "carrier": None, "location": "Mobile", "primary": True}}]},
+            {"data": [{"type": "Address", "id": "4001", "attributes": {"street": "123 St", "city": "Town", "state": "IL", "zip": "60000", "location": "Home", "primary": True}}]},
+        ]
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "list_person_details")
+        details = await fn(person_id="1001")
+        assert "emails" in details
+        assert "phone_numbers" in details
+        assert "addresses" in details
+
+
 class TestUpdatePhoneNumberToolBody:
     async def test_update_phone_number(self, mock_client: AsyncMock) -> None:
         mock_client.patch.return_value = {

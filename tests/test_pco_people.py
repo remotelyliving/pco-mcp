@@ -241,6 +241,37 @@ class TestUpdateAddress:
         assert "/addresses/" in call_path
 
 
+class TestGetPersonDetails:
+    async def test_returns_unified_contact_details(self, mock_client: AsyncMock) -> None:
+        mock_client.get.side_effect = [
+            load_fixture("list_emails.json"),
+            load_fixture("list_phone_numbers.json"),
+            load_fixture("list_addresses.json"),
+        ]
+        api = PeopleAPI(mock_client)
+        details = await api.get_person_details("1001")
+        assert len(details["emails"]) == 1
+        assert details["emails"][0]["address"] == "alice@example.com"
+        assert len(details["phone_numbers"]) == 1
+        assert details["phone_numbers"][0]["number"] == "5550101"
+        assert len(details["addresses"]) == 1
+        assert details["addresses"][0]["city"] == "Springfield"
+
+    async def test_calls_three_endpoints(self, mock_client: AsyncMock) -> None:
+        mock_client.get.side_effect = [
+            load_fixture("list_emails.json"),
+            load_fixture("list_phone_numbers.json"),
+            load_fixture("list_addresses.json"),
+        ]
+        api = PeopleAPI(mock_client)
+        await api.get_person_details("1001")
+        assert mock_client.get.call_count == 3
+        paths = [c.args[0] for c in mock_client.get.call_args_list]
+        assert any("/emails" in p for p in paths)
+        assert any("/phone_numbers" in p for p in paths)
+        assert any("/addresses" in p for p in paths)
+
+
 class TestUpdatePhoneNumber:
     async def test_returns_updated_phone(self, mock_client: AsyncMock) -> None:
         mock_client.patch.return_value = load_fixture("update_phone_number.json")

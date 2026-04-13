@@ -204,6 +204,18 @@ class PeopleAPI:
         result = await self._client.patch(f"/people/v2/people/{person_id}/addresses/{address_id}", data=payload)
         return self._simplify_address(result["data"])
 
+    async def get_person_details(self, person_id: str) -> dict[str, Any]:
+        """Get all contact details for a person (emails, phones, addresses)."""
+        base = f"/people/v2/people/{person_id}"
+        emails_result = await self._client.get(f"{base}/emails")
+        phones_result = await self._client.get(f"{base}/phone_numbers")
+        addresses_result = await self._client.get(f"{base}/addresses")
+        return {
+            "emails": [self._simplify_email(e) for e in emails_result.get("data", [])],
+            "phone_numbers": [self._simplify_phone(p) for p in phones_result.get("data", [])],
+            "addresses": [self._simplify_address(a) for a in addresses_result.get("data", [])],
+        }
+
     async def get_person_blockouts(self, person_id: str) -> list[dict[str, Any]]:
         """Get blockout dates for a person."""
         result = await self._client.get(f"/people/v2/people/{person_id}/blockouts")

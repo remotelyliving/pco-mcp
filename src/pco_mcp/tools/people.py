@@ -164,6 +164,15 @@ def register_people_tools(mcp: FastMCP) -> None:
         return await safe_tool_call(api.update_address(person_id, address_id, street=street, city=city, state=state, zip=zip, location=location, is_primary=is_primary))
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
+    async def list_person_details(person_id: str) -> dict[str, Any]:
+        """Get all contact details for a person — emails, phone numbers,
+        and addresses in a single call."""
+        from pco_mcp.tools._context import get_people_api, safe_tool_call
+
+        api = get_people_api()
+        return await safe_tool_call(api.get_person_details(person_id))
+
+    @mcp.tool(annotations=READ_ANNOTATIONS)
     async def get_person_blockouts(person_id: str) -> list[dict[str, Any]]:
         """Check a person's unavailability / blockout dates.
 
