@@ -191,6 +191,68 @@ class ServicesAPI:
             f"/services/v2/service_types/{service_type_id}/plans/{plan_id}/team_members/{team_member_id}"
         )
 
+    async def get_song(self, song_id: str) -> dict[str, Any]:
+        """Get full details for a song."""
+        result = await self._client.get(f"/services/v2/songs/{song_id}")
+        return self._simplify_song_full(result["data"])
+
+    async def create_song(
+        self,
+        title: str,
+        author: str | None = None,
+        copyright: str | None = None,
+        ccli_number: int | None = None,
+        themes: str | None = None,
+        admin: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a new song in the library."""
+        attributes: dict[str, Any] = {"title": title}
+        if author is not None:
+            attributes["author"] = author
+        if copyright is not None:
+            attributes["copyright"] = copyright
+        if ccli_number is not None:
+            attributes["ccli_number"] = ccli_number
+        if themes is not None:
+            attributes["themes"] = themes
+        if admin is not None:
+            attributes["admin"] = admin
+        payload: dict[str, Any] = {"data": {"type": "Song", "attributes": attributes}}
+        result = await self._client.post("/services/v2/songs", data=payload)
+        return self._simplify_song_full(result["data"])
+
+    async def update_song(
+        self,
+        song_id: str,
+        title: str | None = None,
+        author: str | None = None,
+        copyright: str | None = None,
+        ccli_number: int | None = None,
+        themes: str | None = None,
+        admin: str | None = None,
+    ) -> dict[str, Any]:
+        """Update an existing song."""
+        attributes: dict[str, Any] = {}
+        if title is not None:
+            attributes["title"] = title
+        if author is not None:
+            attributes["author"] = author
+        if copyright is not None:
+            attributes["copyright"] = copyright
+        if ccli_number is not None:
+            attributes["ccli_number"] = ccli_number
+        if themes is not None:
+            attributes["themes"] = themes
+        if admin is not None:
+            attributes["admin"] = admin
+        payload: dict[str, Any] = {"data": {"type": "Song", "attributes": attributes}}
+        result = await self._client.patch(f"/services/v2/songs/{song_id}", data=payload)
+        return self._simplify_song_full(result["data"])
+
+    async def delete_song(self, song_id: str) -> None:
+        """Delete a song and all its arrangements/attachments."""
+        await self._client.delete(f"/services/v2/songs/{song_id}")
+
     async def get_song_schedule_history(self, song_id: str) -> list[dict[str, Any]]:
         """Get schedule history for a song."""
         result = await self._client.get(
@@ -239,6 +301,20 @@ class ServicesAPI:
             "sort_date": attrs.get("sort_date"),
             "items_count": attrs.get("items_count", 0),
             "needed_positions_count": attrs.get("needed_positions_count", 0),
+        }
+
+    def _simplify_song_full(self, raw: dict[str, Any]) -> dict[str, Any]:
+        attrs = raw.get("attributes", {})
+        return {
+            "id": raw["id"],
+            "title": attrs.get("title", ""),
+            "author": attrs.get("author"),
+            "copyright": attrs.get("copyright"),
+            "ccli_number": attrs.get("ccli_number"),
+            "themes": attrs.get("themes"),
+            "admin": attrs.get("admin"),
+            "created_at": attrs.get("created_at"),
+            "last_scheduled_at": attrs.get("last_scheduled_at"),
         }
 
     def _simplify_song(self, raw: dict[str, Any]) -> dict[str, Any]:

@@ -330,3 +330,83 @@ class TestGetNeededPositions:
         api = ServicesAPI(mock_client)
         positions = await api.get_needed_positions("201", "301")
         assert "scheduled_to" in positions[0]
+
+
+class TestGetSong:
+    async def test_returns_full_song_detail(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = load_fixture("get_song.json")
+        api = ServicesAPI(mock_client)
+        song = await api.get_song("4001")
+        assert song["id"] == "4001"
+        assert song["title"] == "Amazing Grace"
+        assert song["copyright"] == "Public Domain"
+        assert song["themes"] == "Grace, Redemption"
+        assert song["admin"] == "Standard hymn"
+        assert song["created_at"] == "2025-01-15T10:00:00Z"
+
+    async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = load_fixture("get_song.json")
+        api = ServicesAPI(mock_client)
+        await api.get_song("4001")
+        call_path = mock_client.get.call_args.args[0]
+        assert "4001" in call_path
+        assert "/songs/" in call_path
+
+
+class TestCreateSong:
+    async def test_returns_created_song(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("create_song.json")
+        api = ServicesAPI(mock_client)
+        song = await api.create_song(title="New Song", author="Test Author", ccli_number=9999999)
+        assert song["id"] == "4010"
+        assert song["title"] == "New Song"
+
+    async def test_sends_correct_payload(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("create_song.json")
+        api = ServicesAPI(mock_client)
+        await api.create_song(
+            title="New Song", author="Test Author", copyright="2026 Test", ccli_number=9999999
+        )
+        data = mock_client.post.call_args.kwargs["data"]
+        assert data["data"]["type"] == "Song"
+        attrs = data["data"]["attributes"]
+        assert attrs["title"] == "New Song"
+        assert attrs["author"] == "Test Author"
+        assert attrs["copyright"] == "2026 Test"
+        assert attrs["ccli_number"] == 9999999
+
+    async def test_only_required_fields(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("create_song.json")
+        api = ServicesAPI(mock_client)
+        await api.create_song(title="New Song")
+        data = mock_client.post.call_args.kwargs["data"]
+        attrs = data["data"]["attributes"]
+        assert attrs["title"] == "New Song"
+        assert "author" not in attrs
+
+
+class TestUpdateSong:
+    async def test_returns_updated_song(self, mock_client: AsyncMock) -> None:
+        mock_client.patch.return_value = load_fixture("update_song.json")
+        api = ServicesAPI(mock_client)
+        song = await api.update_song("4001", title="Amazing Grace (Updated)")
+        assert song["title"] == "Amazing Grace (Updated)"
+
+    async def test_sends_patch_to_correct_endpoint(self, mock_client: AsyncMock) -> None:
+        mock_client.patch.return_value = load_fixture("update_song.json")
+        api = ServicesAPI(mock_client)
+        await api.update_song("4001", ccli_number=1234567)
+        call_path = mock_client.patch.call_args.args[0]
+        assert "4001" in call_path
+        data = mock_client.patch.call_args.kwargs["data"]
+        assert data["data"]["attributes"]["ccli_number"] == 1234567
+
+
+class TestDeleteSong:
+    async def test_calls_delete(self, mock_client: AsyncMock) -> None:
+        mock_client.delete.return_value = None
+        api = ServicesAPI(mock_client)
+        await api.delete_song("4001")
+        mock_client.delete.assert_called_once()
+        call_path = mock_client.delete.call_args.args[0]
+        assert "4001" in call_path

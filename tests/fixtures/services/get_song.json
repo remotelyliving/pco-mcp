@@ -1,0 +1,16 @@
+{
+    "data": {
+        "type": "Song",
+        "id": "4001",
+        "attributes": {
+            "title": "Amazing Grace",
+            "author": "John Newton",
+            "copyright": "Public Domain",
+            "ccli_number": 4669344,
+            "themes": "Grace, Redemption",
+            "admin": "Standard hymn",
+            "created_at": "2025-01-15T10:00:00Z",
+            "last_scheduled_at": "2026-03-30T09:00:00Z"
+        }
+    }
+}

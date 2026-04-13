@@ -1,0 +1,16 @@
+{
+    "data": {
+        "type": "Song",
+        "id": "4010",
+        "attributes": {
+            "title": "New Song",
+            "author": "Test Author",
+            "copyright": "2026 Test",
+            "ccli_number": 9999999,
+            "themes": "",
+            "admin": "",
+            "created_at": "2026-04-13T10:00:00Z",
+            "last_scheduled_at": null
+        }
+    }
+}
