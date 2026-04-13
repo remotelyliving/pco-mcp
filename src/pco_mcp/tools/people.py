@@ -98,6 +98,43 @@ def register_people_tools(mcp: FastMCP) -> None:
             fields["email"] = email
         return await safe_tool_call(api.update_person(person_id, **fields))
 
+    @mcp.tool(annotations=WRITE_ANNOTATIONS)
+    async def add_email(
+        person_id: str,
+        address: str,
+        location: str | None = None,
+        is_primary: bool | None = None,
+    ) -> dict[str, Any]:
+        """Add an email address to a person.
+
+        Location options: 'Home', 'Work', 'Other'.
+        If the email is already linked to another PCO account, returns an error.
+        """
+        from pco_mcp.tools._context import get_people_api, safe_tool_call
+
+        api = get_people_api()
+        return await safe_tool_call(
+            api.add_email(person_id, address=address, location=location, is_primary=is_primary)
+        )
+
+    @mcp.tool(annotations=WRITE_ANNOTATIONS)
+    async def update_email(
+        person_id: str,
+        email_id: str,
+        address: str | None = None,
+        location: str | None = None,
+        is_primary: bool | None = None,
+    ) -> dict[str, Any]:
+        """Update an email address on a person."""
+        from pco_mcp.tools._context import get_people_api, safe_tool_call
+
+        api = get_people_api()
+        return await safe_tool_call(
+            api.update_email(
+                person_id, email_id, address=address, location=location, is_primary=is_primary
+            )
+        )
+
     @mcp.tool(annotations=READ_ANNOTATIONS)
     async def get_person_blockouts(person_id: str) -> list[dict[str, Any]]:
         """Check a person's unavailability / blockout dates.

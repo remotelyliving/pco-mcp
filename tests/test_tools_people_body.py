@@ -225,3 +225,42 @@ class TestUpdatePersonToolBody:
         attrs = call_kwargs["data"]["data"]["attributes"]
         assert "first_name" not in attrs
         assert "last_name" in attrs
+
+
+class TestAddEmailToolBody:
+    async def test_add_email(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = {
+            "data": {
+                "type": "Email",
+                "id": "2001",
+                "attributes": {
+                    "address": "alice@example.com",
+                    "location": "Home",
+                    "primary": True,
+                },
+            }
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "add_email")
+        email = await fn(person_id="1001", address="alice@example.com", location="Home")
+        assert email["id"] == "2001"
+        assert email["address"] == "alice@example.com"
+
+
+class TestUpdateEmailToolBody:
+    async def test_update_email(self, mock_client: AsyncMock) -> None:
+        mock_client.patch.return_value = {
+            "data": {
+                "type": "Email",
+                "id": "2001",
+                "attributes": {
+                    "address": "alice@work.com",
+                    "location": "Work",
+                    "primary": False,
+                },
+            }
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "update_email")
+        email = await fn(person_id="1001", email_id="2001", location="Work")
+        assert email["location"] == "Work"
