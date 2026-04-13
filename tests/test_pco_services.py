@@ -365,7 +365,7 @@ class TestCreateSong:
         mock_client.post.return_value = load_fixture("create_song.json")
         api = ServicesAPI(mock_client)
         await api.create_song(
-            title="New Song", author="Test Author", copyright="2026 Test", ccli_number=9999999
+            title="New Song", author="Test Author", song_copyright="2026 Test", ccli_number=9999999
         )
         data = mock_client.post.call_args.kwargs["data"]
         assert data["data"]["type"] == "Song"

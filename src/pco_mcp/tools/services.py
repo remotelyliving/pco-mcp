@@ -250,7 +250,8 @@ def register_services_tools(mcp: FastMCP) -> None:
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
     async def get_song(song_id: str) -> dict[str, Any]:
-        """Get full details for a song including title, author, copyright, CCLI number, themes, and admin notes."""
+        """Get full details for a song including title, author, copyright,
+        CCLI number, themes, and admin notes."""
         from pco_mcp.tools._context import get_services_api, safe_tool_call
 
         api = get_services_api()
@@ -260,7 +261,7 @@ def register_services_tools(mcp: FastMCP) -> None:
     async def create_song(
         title: str,
         author: str | None = None,
-        copyright: str | None = None,
+        song_copyright: str | None = None,
         ccli_number: int | None = None,
         themes: str | None = None,
         admin: str | None = None,
@@ -276,7 +277,7 @@ def register_services_tools(mcp: FastMCP) -> None:
             api.create_song(
                 title=title,
                 author=author,
-                copyright=copyright,
+                song_copyright=song_copyright,
                 ccli_number=ccli_number,
                 themes=themes,
                 admin=admin,
@@ -288,7 +289,7 @@ def register_services_tools(mcp: FastMCP) -> None:
         song_id: str,
         title: str | None = None,
         author: str | None = None,
-        copyright: str | None = None,
+        song_copyright: str | None = None,
         ccli_number: int | None = None,
         themes: str | None = None,
         admin: str | None = None,
@@ -302,7 +303,7 @@ def register_services_tools(mcp: FastMCP) -> None:
                 song_id,
                 title=title,
                 author=author,
-                copyright=copyright,
+                song_copyright=song_copyright,
                 ccli_number=ccli_number,
                 themes=themes,
                 admin=admin,
@@ -332,8 +333,9 @@ def register_services_tools(mcp: FastMCP) -> None:
     ) -> dict[str, Any]:
         """Create an arrangement for a song with lyrics, chord charts, and key.
 
-        Use ChordPro format for chord_chart to embed chords inline: '[G]Amazing [C]grace'.
-        Plain text is lyrics-only. The sequence field takes section labels like ['Verse 1', 'Chorus'].
+        Use ChordPro format for chord_chart to embed chords inline:
+        '[G]Amazing [C]grace'. Plain text is lyrics-only.
+        The sequence field takes section labels like ['Verse 1', 'Chorus'].
         """
         from pco_mcp.tools._context import get_services_api, safe_tool_call
 
@@ -444,7 +446,8 @@ def register_services_tools(mcp: FastMCP) -> None:
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
     async def list_media(media_type: str | None = None) -> list[dict[str, Any]]:
-        """List org-level media items (backgrounds, countdowns, videos). Optionally filter by type."""
+        """List org-level media items (backgrounds, countdowns, videos).
+        Optionally filter by type."""
         from pco_mcp.tools._context import get_services_api, safe_tool_call
 
         api = get_services_api()

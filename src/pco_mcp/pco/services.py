@@ -211,7 +211,7 @@ class ServicesAPI:
         self,
         title: str,
         author: str | None = None,
-        copyright: str | None = None,
+        song_copyright: str | None = None,
         ccli_number: int | None = None,
         themes: str | None = None,
         admin: str | None = None,
@@ -220,8 +220,8 @@ class ServicesAPI:
         attributes: dict[str, Any] = {"title": title}
         if author is not None:
             attributes["author"] = author
-        if copyright is not None:
-            attributes["copyright"] = copyright
+        if song_copyright is not None:
+            attributes["copyright"] = song_copyright
         if ccli_number is not None:
             attributes["ccli_number"] = ccli_number
         if themes is not None:
@@ -237,7 +237,7 @@ class ServicesAPI:
         song_id: str,
         title: str | None = None,
         author: str | None = None,
-        copyright: str | None = None,
+        song_copyright: str | None = None,
         ccli_number: int | None = None,
         themes: str | None = None,
         admin: str | None = None,
@@ -248,8 +248,8 @@ class ServicesAPI:
             attributes["title"] = title
         if author is not None:
             attributes["author"] = author
-        if copyright is not None:
-            attributes["copyright"] = copyright
+        if song_copyright is not None:
+            attributes["copyright"] = song_copyright
         if ccli_number is not None:
             attributes["ccli_number"] = ccli_number
         if themes is not None:
