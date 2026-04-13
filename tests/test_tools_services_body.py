@@ -502,3 +502,79 @@ class TestUpdateMediaToolBody:
         fn = _get_tool_fn(mcp, "update_media")
         result = await fn(media_id="6001", title="New Title")
         assert result["title"] == "New Title"
+
+
+class TestGetCCLIReportingToolBody:
+    async def test_get_ccli_reporting(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = {
+            "data": {
+                "type": "ItemNote",
+                "id": "7001",
+                "attributes": {
+                    "print_count": 5,
+                    "digital_count": 12,
+                    "recording_count": 2,
+                    "translation_count": 0,
+                },
+            }
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "get_ccli_reporting")
+        report = await fn(service_type_id="201", plan_id="301", item_id="501")
+        assert report["print_count"] == 5
+
+
+class TestGetSongUsageReportToolBody:
+    async def test_get_song_usage_report(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = {
+            "data": [
+                {
+                    "type": "SongSchedule",
+                    "id": "8001",
+                    "attributes": {
+                        "plan_dates": "March 30, 2026",
+                        "plan_sort_date": "2026-03-30T09:00:00Z",
+                        "service_type_name": "Sunday Morning",
+                        "arrangement_name": "Standard",
+                        "key_name": "G",
+                    },
+                }
+            ]
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "get_song_usage_report")
+        history = await fn(song_id="4001")
+        assert len(history) == 1
+        assert history[0]["service_type_name"] == "Sunday Morning"
+
+
+class TestFlagMissingCCLIToolBody:
+    async def test_flag_missing_ccli(self, mock_client: AsyncMock) -> None:
+        mock_client.get_all.return_value = [
+            {
+                "type": "Song",
+                "id": "4001",
+                "attributes": {
+                    "title": "Amazing Grace",
+                    "author": "John Newton",
+                    "ccli_number": 4669344,
+                    "last_scheduled_at": "2026-03-30T09:00:00Z",
+                },
+            },
+            {
+                "type": "Song",
+                "id": "4002",
+                "attributes": {
+                    "title": "Missing CCLI Song",
+                    "author": "Unknown",
+                    "ccli_number": None,
+                    "last_scheduled_at": None,
+                },
+            },
+        ]
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "flag_missing_ccli")
+        result = await fn()
+        assert result["total_scanned"] == 2
+        assert result["total_missing"] == 1
+        assert result["songs"][0]["title"] == "Missing CCLI Song"

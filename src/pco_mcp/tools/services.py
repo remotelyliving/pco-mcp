@@ -450,3 +450,39 @@ def register_services_tools(mcp: FastMCP) -> None:
         return await safe_tool_call(
             api.update_media(media_id, title=title, themes=themes, creator_name=creator_name)
         )
+
+    @mcp.tool(annotations=READ_ANNOTATIONS)
+    async def get_ccli_reporting(
+        service_type_id: str, plan_id: str, item_id: str
+    ) -> dict[str, Any]:
+        """Get CCLI reporting data for a plan item (print, digital, recording, translation counts).
+
+        CCLI reporting is tracked automatically by PCO when songs are added to plans.
+        """
+        from pco_mcp.tools._context import get_services_api, safe_tool_call
+
+        api = get_services_api()
+        return await safe_tool_call(api.get_ccli_reporting(service_type_id, plan_id, item_id))
+
+    @mcp.tool(annotations=READ_ANNOTATIONS)
+    async def get_song_usage_report(song_id: str) -> list[dict[str, Any]]:
+        """Get all dates a song was scheduled, with service type, key, and arrangement.
+
+        Useful for CCLI annual reporting — shows how many times a song was used.
+        """
+        from pco_mcp.tools._context import get_services_api, safe_tool_call
+
+        api = get_services_api()
+        return await safe_tool_call(api.get_song_schedule_history(song_id))
+
+    @mcp.tool(annotations=READ_ANNOTATIONS)
+    async def flag_missing_ccli() -> dict[str, Any]:
+        """Scan the song library for songs missing CCLI numbers.
+
+        Returns a list of songs without CCLI numbers along with total counts.
+        Scans up to ~200 songs. Use update_song to fill in missing numbers.
+        """
+        from pco_mcp.tools._context import get_services_api, safe_tool_call
+
+        api = get_services_api()
+        return await safe_tool_call(api.flag_missing_ccli())
