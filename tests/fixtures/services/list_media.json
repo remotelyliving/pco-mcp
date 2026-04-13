@@ -1,0 +1,25 @@
+{
+    "data": [
+        {
+            "type": "Media",
+            "id": "6001",
+            "attributes": {
+                "title": "Worship Background",
+                "media_type": "image",
+                "thumbnail_url": "https://cdn.planningcenteronline.com/thumb.jpg",
+                "creator_name": "Admin"
+            }
+        },
+        {
+            "type": "Media",
+            "id": "6002",
+            "attributes": {
+                "title": "Countdown 5min",
+                "media_type": "countdown",
+                "thumbnail_url": "https://cdn.planningcenteronline.com/thumb2.jpg",
+                "creator_name": "Tech Lead"
+            }
+        }
+    ],
+    "meta": {"total_count": 2, "count": 2}
+}

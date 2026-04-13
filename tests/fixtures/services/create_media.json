@@ -1,0 +1,18 @@
+{
+    "data": {
+        "type": "Media",
+        "id": "6001",
+        "attributes": {
+            "title": "Worship Background",
+            "media_type": "image",
+            "thumbnail_url": null,
+            "creator_name": "Admin"
+        }
+    },
+    "meta": {
+        "upload": {
+            "url": "https://s3.amazonaws.com/media-presigned-url",
+            "fields": {}
+        }
+    }
+}

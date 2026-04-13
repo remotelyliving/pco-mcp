@@ -428,6 +428,78 @@ class ServicesAPI:
         )
         return [self._simplify_attachment(a) for a in result.get("data", [])]
 
+    async def create_media(
+        self,
+        title: str,
+        media_type: str,
+        url: str,
+        filename: str,
+        content_type: str,
+        creator_name: str | None = None,
+    ) -> dict[str, Any]:
+        """Create an org-level media item (background, countdown, etc.) with file upload."""
+        attributes: dict[str, Any] = {"title": title, "media_type": media_type}
+        if creator_name is not None:
+            attributes["creator_name"] = creator_name
+        payload: dict[str, Any] = {"data": {"type": "Media", "attributes": attributes}}
+        create_result = await self._client.post("/services/v2/media", data=payload)
+        media_id = create_result["data"]["id"]
+        media_record = self._simplify_media(create_result["data"])
+
+        upload_url = create_result["meta"]["upload"]["url"]
+        response = await self._client._client.get(url)
+        response.raise_for_status()
+        file_bytes = response.content
+        await self._client.put_raw(upload_url, data=file_bytes, content_type=content_type)
+
+        complete_payload: dict[str, Any] = {
+            "data": {
+                "type": "Attachment",
+                "attributes": {"filename": filename, "content_type": content_type},
+            }
+        }
+        await self._client.patch(
+            f"/services/v2/media/{media_id}/attachments", data=complete_payload
+        )
+        return media_record
+
+    async def list_media(self, media_type: str | None = None) -> list[dict[str, Any]]:
+        """List org-level media items, optionally filtered by type."""
+        params: dict[str, Any] = {}
+        if media_type:
+            params["where[media_type]"] = media_type
+        result = await self._client.get("/services/v2/media", params=params)
+        return [self._simplify_media(m) for m in result.get("data", [])]
+
+    async def update_media(
+        self,
+        media_id: str,
+        title: str | None = None,
+        themes: str | None = None,
+        creator_name: str | None = None,
+    ) -> dict[str, Any]:
+        """Update a media item's metadata."""
+        attributes: dict[str, Any] = {}
+        if title is not None:
+            attributes["title"] = title
+        if themes is not None:
+            attributes["themes"] = themes
+        if creator_name is not None:
+            attributes["creator_name"] = creator_name
+        payload: dict[str, Any] = {"data": {"type": "Media", "attributes": attributes}}
+        result = await self._client.patch(f"/services/v2/media/{media_id}", data=payload)
+        return self._simplify_media(result["data"])
+
+    def _simplify_media(self, raw: dict[str, Any]) -> dict[str, Any]:
+        attrs = raw.get("attributes", {})
+        return {
+            "id": raw["id"],
+            "title": attrs.get("title", ""),
+            "media_type": attrs.get("media_type"),
+            "thumbnail_url": attrs.get("thumbnail_url"),
+            "creator_name": attrs.get("creator_name"),
+        }
+
     def _simplify_attachment(self, raw: dict[str, Any]) -> dict[str, Any]:
         attrs = raw.get("attributes", {})
         return {

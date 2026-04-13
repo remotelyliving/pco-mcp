@@ -1,0 +1,13 @@
+{
+    "data": {
+        "type": "Media",
+        "id": "6001",
+        "attributes": {
+            "title": "Updated Background",
+            "media_type": "image",
+            "thumbnail_url": "https://cdn.planningcenteronline.com/thumb.jpg",
+            "creator_name": "Admin",
+            "themes": "Worship, Nature"
+        }
+    }
+}

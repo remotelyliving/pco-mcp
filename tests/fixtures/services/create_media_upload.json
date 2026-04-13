@@ -1,0 +1,12 @@
+{
+    "data": {
+        "type": "Attachment",
+        "id": "6010",
+        "attributes": {
+            "filename": "background.jpg",
+            "content_type": "image/jpeg",
+            "file_size": 500000,
+            "url": "https://cdn.planningcenteronline.com/background.jpg"
+        }
+    }
+}

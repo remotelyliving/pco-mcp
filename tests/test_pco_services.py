@@ -563,3 +563,82 @@ class TestListAttachments:
         assert "4001" in call_path
         assert "1001" in call_path
         assert "attachments" in call_path
+
+
+class TestCreateMedia:
+    async def test_creates_media_with_upload(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("create_media.json")
+        mock_client.patch.return_value = load_fixture("create_media_upload.json")
+        mock_http = AsyncMock()
+        mock_fetch_response = AsyncMock()
+        mock_fetch_response.content = b"fake-image-bytes"
+        mock_fetch_response.raise_for_status = lambda: None
+        mock_http.get.return_value = mock_fetch_response
+        mock_client._client = mock_http
+        mock_client.put_raw = AsyncMock()
+
+        api = ServicesAPI(mock_client)
+        result = await api.create_media(
+            title="Worship Background",
+            media_type="image",
+            url="https://example.com/background.jpg",
+            filename="background.jpg",
+            content_type="image/jpeg",
+        )
+        assert result["id"] == "6001"
+        assert result["title"] == "Worship Background"
+
+    async def test_posts_media_then_uploads(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("create_media.json")
+        mock_client.patch.return_value = load_fixture("create_media_upload.json")
+        mock_http = AsyncMock()
+        mock_fetch_response = AsyncMock()
+        mock_fetch_response.content = b"fake-image-bytes"
+        mock_fetch_response.raise_for_status = lambda: None
+        mock_http.get.return_value = mock_fetch_response
+        mock_client._client = mock_http
+        mock_client.put_raw = AsyncMock()
+
+        api = ServicesAPI(mock_client)
+        await api.create_media(
+            title="Worship Background",
+            media_type="image",
+            url="https://example.com/background.jpg",
+            filename="background.jpg",
+            content_type="image/jpeg",
+        )
+        first_post_path = mock_client.post.call_args_list[0].args[0]
+        assert "/media" in first_post_path
+
+
+class TestListMedia:
+    async def test_returns_media_list(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = load_fixture("list_media.json")
+        api = ServicesAPI(mock_client)
+        media = await api.list_media()
+        assert len(media) == 2
+        assert media[0]["title"] == "Worship Background"
+        assert media[1]["media_type"] == "countdown"
+
+    async def test_filters_by_media_type(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = load_fixture("list_media.json")
+        api = ServicesAPI(mock_client)
+        await api.list_media(media_type="image")
+        params = mock_client.get.call_args.kwargs.get("params", {})
+        assert params.get("where[media_type]") == "image"
+
+
+class TestUpdateMedia:
+    async def test_returns_updated_media(self, mock_client: AsyncMock) -> None:
+        mock_client.patch.return_value = load_fixture("update_media.json")
+        api = ServicesAPI(mock_client)
+        media = await api.update_media("6001", title="Updated Background")
+        assert media["title"] == "Updated Background"
+
+    async def test_sends_patch_to_correct_endpoint(self, mock_client: AsyncMock) -> None:
+        mock_client.patch.return_value = load_fixture("update_media.json")
+        api = ServicesAPI(mock_client)
+        await api.update_media("6001", title="Updated Background")
+        call_path = mock_client.patch.call_args.args[0]
+        assert "6001" in call_path
+        assert "/media/" in call_path
