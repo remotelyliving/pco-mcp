@@ -135,6 +135,20 @@ def register_people_tools(mcp: FastMCP) -> None:
             )
         )
 
+    @mcp.tool(annotations=WRITE_ANNOTATIONS)
+    async def add_phone_number(person_id: str, number: str, location: str | None = None, is_primary: bool | None = None) -> dict[str, Any]:
+        """Add a phone number to a person. Location options: 'Home', 'Work', 'Mobile', 'Other'."""
+        from pco_mcp.tools._context import get_people_api, safe_tool_call
+        api = get_people_api()
+        return await safe_tool_call(api.add_phone_number(person_id, number=number, location=location, is_primary=is_primary))
+
+    @mcp.tool(annotations=WRITE_ANNOTATIONS)
+    async def update_phone_number(person_id: str, phone_id: str, number: str | None = None, location: str | None = None, is_primary: bool | None = None) -> dict[str, Any]:
+        """Update a phone number on a person."""
+        from pco_mcp.tools._context import get_people_api, safe_tool_call
+        api = get_people_api()
+        return await safe_tool_call(api.update_phone_number(person_id, phone_id, number=number, location=location, is_primary=is_primary))
+
     @mcp.tool(annotations=READ_ANNOTATIONS)
     async def get_person_blockouts(person_id: str) -> list[dict[str, Any]]:
         """Check a person's unavailability / blockout dates.

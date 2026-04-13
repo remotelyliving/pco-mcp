@@ -1,0 +1,12 @@
+{
+    "data": {
+        "type": "PhoneNumber",
+        "id": "3001",
+        "attributes": {
+            "number": "5550202",
+            "carrier": null,
+            "location": "Work",
+            "primary": false
+        }
+    }
+}

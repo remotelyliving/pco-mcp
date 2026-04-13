@@ -160,3 +160,51 @@ class TestUpdateEmail:
         assert "1001" in call_path
         assert "2001" in call_path
         assert "/emails/" in call_path
+
+
+class TestAddPhoneNumber:
+    async def test_returns_created_phone(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("add_phone_number.json")
+        api = PeopleAPI(mock_client)
+        phone = await api.add_phone_number("1001", number="5550101", location="Mobile", is_primary=True)
+        assert phone["id"] == "3001"
+        assert phone["number"] == "5550101"
+        assert phone["location"] == "Mobile"
+
+    async def test_sends_correct_payload(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("add_phone_number.json")
+        api = PeopleAPI(mock_client)
+        await api.add_phone_number("1001", number="5550101")
+        call_path = mock_client.post.call_args.args[0]
+        assert "1001" in call_path
+        assert "/phone_numbers" in call_path
+        data = mock_client.post.call_args.kwargs["data"]
+        assert data["data"]["type"] == "PhoneNumber"
+        assert data["data"]["attributes"]["number"] == "5550101"
+
+    async def test_only_required_fields(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("add_phone_number.json")
+        api = PeopleAPI(mock_client)
+        await api.add_phone_number("1001", number="5550101")
+        data = mock_client.post.call_args.kwargs["data"]
+        attrs = data["data"]["attributes"]
+        assert "number" in attrs
+        assert "location" not in attrs
+
+
+class TestUpdatePhoneNumber:
+    async def test_returns_updated_phone(self, mock_client: AsyncMock) -> None:
+        mock_client.patch.return_value = load_fixture("update_phone_number.json")
+        api = PeopleAPI(mock_client)
+        phone = await api.update_phone_number("1001", "3001", number="5550202", location="Work")
+        assert phone["number"] == "5550202"
+        assert phone["location"] == "Work"
+
+    async def test_sends_patch_to_correct_endpoint(self, mock_client: AsyncMock) -> None:
+        mock_client.patch.return_value = load_fixture("update_phone_number.json")
+        api = PeopleAPI(mock_client)
+        await api.update_phone_number("1001", "3001", location="Work")
+        call_path = mock_client.patch.call_args.args[0]
+        assert "1001" in call_path
+        assert "3001" in call_path
+        assert "/phone_numbers/" in call_path

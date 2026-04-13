@@ -264,3 +264,33 @@ class TestUpdateEmailToolBody:
         fn = _get_tool_fn(mcp, "update_email")
         email = await fn(person_id="1001", email_id="2001", location="Work")
         assert email["location"] == "Work"
+
+
+class TestAddPhoneNumberToolBody:
+    async def test_add_phone_number(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = {
+            "data": {
+                "type": "PhoneNumber",
+                "id": "3001",
+                "attributes": {"number": "5550101", "carrier": None, "location": "Mobile", "primary": True},
+            }
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "add_phone_number")
+        phone = await fn(person_id="1001", number="5550101", location="Mobile")
+        assert phone["id"] == "3001"
+
+
+class TestUpdatePhoneNumberToolBody:
+    async def test_update_phone_number(self, mock_client: AsyncMock) -> None:
+        mock_client.patch.return_value = {
+            "data": {
+                "type": "PhoneNumber",
+                "id": "3001",
+                "attributes": {"number": "5550202", "carrier": None, "location": "Work", "primary": False},
+            }
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "update_phone_number")
+        phone = await fn(person_id="1001", phone_id="3001", location="Work")
+        assert phone["location"] == "Work"

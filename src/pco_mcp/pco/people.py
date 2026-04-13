@@ -156,6 +156,30 @@ class PeopleAPI:
         )
         return self._simplify_email(result["data"])
 
+    async def add_phone_number(self, person_id: str, number: str, location: str | None = None, is_primary: bool | None = None) -> dict[str, Any]:
+        """Add a phone number to a person."""
+        attributes: dict[str, Any] = {"number": number}
+        if location is not None:
+            attributes["location"] = location
+        if is_primary is not None:
+            attributes["primary"] = is_primary
+        payload: dict[str, Any] = {"data": {"type": "PhoneNumber", "attributes": attributes}}
+        result = await self._client.post(f"/people/v2/people/{person_id}/phone_numbers", data=payload)
+        return self._simplify_phone(result["data"])
+
+    async def update_phone_number(self, person_id: str, phone_id: str, number: str | None = None, location: str | None = None, is_primary: bool | None = None) -> dict[str, Any]:
+        """Update a phone number."""
+        attributes: dict[str, Any] = {}
+        if number is not None:
+            attributes["number"] = number
+        if location is not None:
+            attributes["location"] = location
+        if is_primary is not None:
+            attributes["primary"] = is_primary
+        payload: dict[str, Any] = {"data": {"type": "PhoneNumber", "attributes": attributes}}
+        result = await self._client.patch(f"/people/v2/people/{person_id}/phone_numbers/{phone_id}", data=payload)
+        return self._simplify_phone(result["data"])
+
     async def get_person_blockouts(self, person_id: str) -> list[dict[str, Any]]:
         """Get blockout dates for a person."""
         result = await self._client.get(f"/people/v2/people/{person_id}/blockouts")
@@ -194,6 +218,17 @@ class PeopleAPI:
         return {
             "id": raw["id"],
             "address": attrs.get("address", ""),
+            "location": attrs.get("location"),
+            "primary": attrs.get("primary", False),
+        }
+
+    def _simplify_phone(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """Flatten a JSON:API phone number record."""
+        attrs = raw.get("attributes", {})
+        return {
+            "id": raw["id"],
+            "number": attrs.get("number", ""),
+            "carrier": attrs.get("carrier"),
             "location": attrs.get("location"),
             "primary": attrs.get("primary", False),
         }
