@@ -1,6 +1,9 @@
+import logging
 from typing import Any
 
-from pco_mcp.pco.client import PCOClient
+from pco_mcp.pco.client import PCOAPIError, PCOClient
+
+logger = logging.getLogger(__name__)
 
 
 class PeopleAPI:
@@ -50,7 +53,13 @@ class PeopleAPI:
     async def create_person(
         self, first_name: str, last_name: str, email: str | None = None
     ) -> dict[str, Any]:
-        """Create a new person record."""
+        """Create a new person record.
+
+        If email assignment fails (e.g., the email belongs to an existing PCO
+        login), the person is created without email and then we attempt to add
+        it separately. If that also fails, the person is returned with a note
+        explaining the email must be linked via the PCO web UI.
+        """
         attributes: dict[str, Any] = {
             "first_name": first_name,
             "last_name": last_name,
@@ -63,8 +72,36 @@ class PeopleAPI:
                 "attributes": attributes,
             }
         }
+
+        try:
+            result = await self._client.post("/people/v2/people", data=payload)
+            return self._simplify_person(result["data"])
+        except PCOAPIError as e:
+            if e.status_code != 422 or not email or "email" not in e.detail.lower():
+                raise
+
+        # Retry without email
+        logger.info("Email assignment failed for %s %s, retrying without email", first_name, last_name)
+        attributes.pop("email_addresses", None)
         result = await self._client.post("/people/v2/people", data=payload)
-        return self._simplify_person(result["data"])
+        person = self._simplify_person(result["data"])
+
+        # Try adding the email as a separate resource
+        try:
+            await self._client.post(
+                f"/people/v2/people/{person['id']}/emails",
+                data={"data": {"type": "Email", "attributes": {"address": email, "location": "Home", "primary": True}}},
+            )
+            person["email"] = email
+            return person
+        except PCOAPIError:
+            logger.info("Separate email assignment also failed for person %s", person["id"])
+            person["_warning"] = (
+                f"Person created but the email '{email}' could not be assigned — "
+                "it belongs to an existing Planning Center account. "
+                "To link this email, go to the person's profile in the Planning Center web app."
+            )
+            return person
 
     async def update_person(self, person_id: str, **fields: str) -> dict[str, Any]:
         """Update fields on an existing person."""
