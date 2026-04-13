@@ -185,6 +185,16 @@ def register_people_tools(mcp: FastMCP) -> None:
         return await safe_tool_call(api.get_person_blockouts(person_id))
 
     @mcp.tool(annotations=WRITE_ANNOTATIONS)
+    async def add_blockout(person_id: str, description: str, starts_at: str, ends_at: str, repeat_frequency: str | None = None, repeat_until: str | None = None) -> dict[str, Any]:
+        """Add a blockout (unavailability) date for a person.
+        Provide ISO datetimes for starts_at/ends_at.
+        Repeat options: 'no_repeat', 'every_1_week', 'every_2_weeks', 'every_1_month'.
+        Use repeat_until (ISO date) to set an end date."""
+        from pco_mcp.tools._context import get_people_api, safe_tool_call
+        api = get_people_api()
+        return await safe_tool_call(api.add_blockout(person_id, description=description, starts_at=starts_at, ends_at=ends_at, repeat_frequency=repeat_frequency, repeat_until=repeat_until))
+
+    @mcp.tool(annotations=WRITE_ANNOTATIONS)
     async def add_note(person_id: str, note: str, note_category_id: str | None = None) -> dict[str, Any]:
         """Add a pastoral or administrative note to a person's record.
         If note_category_id is omitted, the note uses the default category."""

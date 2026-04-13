@@ -1,0 +1,14 @@
+{
+    "data": {
+        "type": "Blockout",
+        "id": "6001",
+        "attributes": {
+            "description": "Family vacation",
+            "reason": "",
+            "starts_at": "2026-04-20T00:00:00Z",
+            "ends_at": "2026-04-27T00:00:00Z",
+            "repeat_frequency": "no_repeat",
+            "repeat_until": null
+        }
+    }
+}

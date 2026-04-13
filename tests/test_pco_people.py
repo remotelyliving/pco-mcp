@@ -317,6 +317,46 @@ class TestGetNotes:
         assert "/notes" in call_path
 
 
+class TestAddBlockout:
+    async def test_returns_created_blockout(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("add_blockout.json")
+        api = PeopleAPI(mock_client)
+        blockout = await api.add_blockout("1001", description="Family vacation", starts_at="2026-04-20T00:00:00Z", ends_at="2026-04-27T00:00:00Z")
+        assert blockout["id"] == "6001"
+        assert blockout["description"] == "Family vacation"
+        assert blockout["starts_at"] == "2026-04-20T00:00:00Z"
+
+    async def test_sends_correct_payload(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("add_blockout.json")
+        api = PeopleAPI(mock_client)
+        await api.add_blockout("1001", description="Family vacation", starts_at="2026-04-20T00:00:00Z", ends_at="2026-04-27T00:00:00Z")
+        call_path = mock_client.post.call_args.args[0]
+        assert "1001" in call_path
+        assert "/blockouts" in call_path
+        data = mock_client.post.call_args.kwargs["data"]
+        attrs = data["data"]["attributes"]
+        assert attrs["description"] == "Family vacation"
+        assert attrs["starts_at"] == "2026-04-20T00:00:00Z"
+
+    async def test_with_repeat_params(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("add_blockout.json")
+        api = PeopleAPI(mock_client)
+        await api.add_blockout("1001", description="Weekly commitment", starts_at="2026-04-20T09:00:00Z", ends_at="2026-04-20T12:00:00Z", repeat_frequency="every_1_week", repeat_until="2026-12-31")
+        data = mock_client.post.call_args.kwargs["data"]
+        attrs = data["data"]["attributes"]
+        assert attrs["repeat_frequency"] == "every_1_week"
+        assert attrs["repeat_until"] == "2026-12-31"
+
+    async def test_optional_repeat_fields_omitted(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("add_blockout.json")
+        api = PeopleAPI(mock_client)
+        await api.add_blockout("1001", description="One-time", starts_at="2026-04-20T00:00:00Z", ends_at="2026-04-21T00:00:00Z")
+        data = mock_client.post.call_args.kwargs["data"]
+        attrs = data["data"]["attributes"]
+        assert "repeat_frequency" not in attrs
+        assert "repeat_until" not in attrs
+
+
 class TestUpdatePhoneNumber:
     async def test_returns_updated_phone(self, mock_client: AsyncMock) -> None:
         mock_client.patch.return_value = load_fixture("update_phone_number.json")

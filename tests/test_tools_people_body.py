@@ -342,6 +342,18 @@ class TestListNotesToolBody:
         assert notes[0]["note"] == "A note."
 
 
+class TestAddBlockoutToolBody:
+    async def test_add_blockout(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = {
+            "data": {"type": "Blockout", "id": "6001", "attributes": {"description": "Vacation", "reason": "", "starts_at": "2026-04-20T00:00:00Z", "ends_at": "2026-04-27T00:00:00Z", "repeat_frequency": "no_repeat", "repeat_until": None}}
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "add_blockout")
+        blockout = await fn(person_id="1001", description="Vacation", starts_at="2026-04-20T00:00:00Z", ends_at="2026-04-27T00:00:00Z")
+        assert blockout["id"] == "6001"
+        assert blockout["description"] == "Vacation"
+
+
 class TestUpdatePhoneNumberToolBody:
     async def test_update_phone_number(self, mock_client: AsyncMock) -> None:
         mock_client.patch.return_value = {

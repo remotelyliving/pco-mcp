@@ -221,6 +221,17 @@ class PeopleAPI:
         result = await self._client.get(f"/people/v2/people/{person_id}/blockouts")
         return [self._simplify_blockout(b) for b in result.get("data", [])]
 
+    async def add_blockout(self, person_id: str, description: str, starts_at: str, ends_at: str, repeat_frequency: str | None = None, repeat_until: str | None = None) -> dict[str, Any]:
+        """Create a blockout date for a person."""
+        attributes: dict[str, Any] = {"description": description, "starts_at": starts_at, "ends_at": ends_at}
+        if repeat_frequency is not None:
+            attributes["repeat_frequency"] = repeat_frequency
+        if repeat_until is not None:
+            attributes["repeat_until"] = repeat_until
+        payload: dict[str, Any] = {"data": {"type": "Blockout", "attributes": attributes}}
+        result = await self._client.post(f"/people/v2/people/{person_id}/blockouts", data=payload)
+        return self._simplify_blockout(result["data"])
+
     async def add_note(self, person_id: str, note: str, note_category_id: str | None = None) -> dict[str, Any]:
         """Add a note to a person."""
         attributes: dict[str, Any] = {"note": note}
