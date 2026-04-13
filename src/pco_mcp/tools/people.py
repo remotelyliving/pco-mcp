@@ -136,32 +136,88 @@ def register_people_tools(mcp: FastMCP) -> None:
         )
 
     @mcp.tool(annotations=WRITE_ANNOTATIONS)
-    async def add_phone_number(person_id: str, number: str, location: str | None = None, is_primary: bool | None = None) -> dict[str, Any]:
+    async def add_phone_number(
+        person_id: str, number: str, location: str | None = None, is_primary: bool | None = None
+    ) -> dict[str, Any]:
         """Add a phone number to a person. Location options: 'Home', 'Work', 'Mobile', 'Other'."""
         from pco_mcp.tools._context import get_people_api, safe_tool_call
+
         api = get_people_api()
-        return await safe_tool_call(api.add_phone_number(person_id, number=number, location=location, is_primary=is_primary))
+        return await safe_tool_call(
+            api.add_phone_number(person_id, number=number, location=location, is_primary=is_primary)
+        )
 
     @mcp.tool(annotations=WRITE_ANNOTATIONS)
-    async def update_phone_number(person_id: str, phone_id: str, number: str | None = None, location: str | None = None, is_primary: bool | None = None) -> dict[str, Any]:
+    async def update_phone_number(
+        person_id: str,
+        phone_id: str,
+        number: str | None = None,
+        location: str | None = None,
+        is_primary: bool | None = None,
+    ) -> dict[str, Any]:
         """Update a phone number on a person."""
         from pco_mcp.tools._context import get_people_api, safe_tool_call
+
         api = get_people_api()
-        return await safe_tool_call(api.update_phone_number(person_id, phone_id, number=number, location=location, is_primary=is_primary))
+        return await safe_tool_call(
+            api.update_phone_number(
+                person_id, phone_id, number=number, location=location, is_primary=is_primary
+            )
+        )
 
     @mcp.tool(annotations=WRITE_ANNOTATIONS)
-    async def add_address(person_id: str, street: str, city: str, state: str, zip: str, location: str | None = None, is_primary: bool | None = None) -> dict[str, Any]:
+    async def add_address(
+        person_id: str,
+        street: str,
+        city: str,
+        state: str,
+        zip_code: str,
+        location: str | None = None,
+        is_primary: bool | None = None,
+    ) -> dict[str, Any]:
         """Add a mailing address to a person. Location options: 'Home', 'Work', 'Other'."""
         from pco_mcp.tools._context import get_people_api, safe_tool_call
+
         api = get_people_api()
-        return await safe_tool_call(api.add_address(person_id, street=street, city=city, state=state, zip=zip, location=location, is_primary=is_primary))
+        return await safe_tool_call(
+            api.add_address(
+                person_id,
+                street=street,
+                city=city,
+                state=state,
+                zip_code=zip_code,
+                location=location,
+                is_primary=is_primary,
+            )
+        )
 
     @mcp.tool(annotations=WRITE_ANNOTATIONS)
-    async def update_address(person_id: str, address_id: str, street: str | None = None, city: str | None = None, state: str | None = None, zip: str | None = None, location: str | None = None, is_primary: bool | None = None) -> dict[str, Any]:
+    async def update_address(
+        person_id: str,
+        address_id: str,
+        street: str | None = None,
+        city: str | None = None,
+        state: str | None = None,
+        zip_code: str | None = None,
+        location: str | None = None,
+        is_primary: bool | None = None,
+    ) -> dict[str, Any]:
         """Update an address on a person."""
         from pco_mcp.tools._context import get_people_api, safe_tool_call
+
         api = get_people_api()
-        return await safe_tool_call(api.update_address(person_id, address_id, street=street, city=city, state=state, zip=zip, location=location, is_primary=is_primary))
+        return await safe_tool_call(
+            api.update_address(
+                person_id,
+                address_id,
+                street=street,
+                city=city,
+                state=state,
+                zip_code=zip_code,
+                location=location,
+                is_primary=is_primary,
+            )
+        )
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
     async def list_person_details(person_id: str) -> dict[str, Any]:
@@ -185,27 +241,50 @@ def register_people_tools(mcp: FastMCP) -> None:
         return await safe_tool_call(api.get_person_blockouts(person_id))
 
     @mcp.tool(annotations=WRITE_ANNOTATIONS)
-    async def add_blockout(person_id: str, description: str, starts_at: str, ends_at: str, repeat_frequency: str | None = None, repeat_until: str | None = None) -> dict[str, Any]:
+    async def add_blockout(
+        person_id: str,
+        description: str,
+        starts_at: str,
+        ends_at: str,
+        repeat_frequency: str | None = None,
+        repeat_until: str | None = None,
+    ) -> dict[str, Any]:
         """Add a blockout (unavailability) date for a person.
         Provide ISO datetimes for starts_at/ends_at.
         Repeat options: 'no_repeat', 'every_1_week', 'every_2_weeks', 'every_1_month'.
         Use repeat_until (ISO date) to set an end date."""
         from pco_mcp.tools._context import get_people_api, safe_tool_call
+
         api = get_people_api()
-        return await safe_tool_call(api.add_blockout(person_id, description=description, starts_at=starts_at, ends_at=ends_at, repeat_frequency=repeat_frequency, repeat_until=repeat_until))
+        return await safe_tool_call(
+            api.add_blockout(
+                person_id,
+                description=description,
+                starts_at=starts_at,
+                ends_at=ends_at,
+                repeat_frequency=repeat_frequency,
+                repeat_until=repeat_until,
+            )
+        )
 
     @mcp.tool(annotations=WRITE_ANNOTATIONS)
-    async def add_note(person_id: str, note: str, note_category_id: str | None = None) -> dict[str, Any]:
+    async def add_note(
+        person_id: str, note: str, note_category_id: str | None = None
+    ) -> dict[str, Any]:
         """Add a pastoral or administrative note to a person's record.
         If note_category_id is omitted, the note uses the default category."""
         from pco_mcp.tools._context import get_people_api, safe_tool_call
+
         api = get_people_api()
-        return await safe_tool_call(api.add_note(person_id, note=note, note_category_id=note_category_id))
+        return await safe_tool_call(
+            api.add_note(person_id, note=note, note_category_id=note_category_id)
+        )
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
     async def list_notes(person_id: str) -> list[dict[str, Any]]:
         """List notes on a person's record, most recent first (up to 50)."""
         from pco_mcp.tools._context import get_people_api, safe_tool_call
+
         api = get_people_api()
         return await safe_tool_call(api.get_notes(person_id))
 
@@ -214,6 +293,7 @@ def register_people_tools(mcp: FastMCP) -> None:
         """List all workflows in the org (e.g., 'New Member Follow-up',
         'Baptism Prep'). Shows card counts for each workflow."""
         from pco_mcp.tools._context import get_people_api, safe_tool_call
+
         api = get_people_api()
         return await safe_tool_call(api.get_workflows())
 
@@ -221,5 +301,6 @@ def register_people_tools(mcp: FastMCP) -> None:
     async def add_person_to_workflow(workflow_id: str, person_id: str) -> dict[str, Any]:
         """Add a person to a workflow. Creates a new card at the first step."""
         from pco_mcp.tools._context import get_people_api, safe_tool_call
+
         api = get_people_api()
         return await safe_tool_call(api.add_person_to_workflow(workflow_id, person_id))

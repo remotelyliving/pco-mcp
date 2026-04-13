@@ -196,7 +196,7 @@ class TestAddAddress:
     async def test_returns_created_address(self, mock_client: AsyncMock) -> None:
         mock_client.post.return_value = load_fixture("add_address.json")
         api = PeopleAPI(mock_client)
-        addr = await api.add_address("1001", street="123 Main St", city="Springfield", state="IL", zip="62701")
+        addr = await api.add_address("1001", street="123 Main St", city="Springfield", state="IL", zip_code="62701")
         assert addr["id"] == "4001"
         assert addr["street"] == "123 Main St"
         assert addr["city"] == "Springfield"
@@ -205,7 +205,7 @@ class TestAddAddress:
     async def test_sends_correct_payload(self, mock_client: AsyncMock) -> None:
         mock_client.post.return_value = load_fixture("add_address.json")
         api = PeopleAPI(mock_client)
-        await api.add_address("1001", street="123 Main St", city="Springfield", state="IL", zip="62701", location="Home")
+        await api.add_address("1001", street="123 Main St", city="Springfield", state="IL", zip_code="62701", location="Home")
         call_path = mock_client.post.call_args.args[0]
         assert "1001" in call_path
         assert "/addresses" in call_path
@@ -217,7 +217,7 @@ class TestAddAddress:
     async def test_only_required_fields(self, mock_client: AsyncMock) -> None:
         mock_client.post.return_value = load_fixture("add_address.json")
         api = PeopleAPI(mock_client)
-        await api.add_address("1001", street="123 Main St", city="Springfield", state="IL", zip="62701")
+        await api.add_address("1001", street="123 Main St", city="Springfield", state="IL", zip_code="62701")
         data = mock_client.post.call_args.kwargs["data"]
         attrs = data["data"]["attributes"]
         assert "street" in attrs
@@ -234,7 +234,7 @@ class TestUpdateAddress:
     async def test_sends_patch_to_correct_endpoint(self, mock_client: AsyncMock) -> None:
         mock_client.patch.return_value = load_fixture("update_address.json")
         api = PeopleAPI(mock_client)
-        await api.update_address("1001", "4001", zip="62702")
+        await api.update_address("1001", "4001", zip_code="62702")
         call_path = mock_client.patch.call_args.args[0]
         assert "1001" in call_path
         assert "4001" in call_path

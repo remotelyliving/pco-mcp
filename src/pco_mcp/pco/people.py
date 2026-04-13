@@ -24,6 +24,7 @@ class PeopleAPI:
             params["where[search_name]"] = name
         if email and phone:
             import warnings
+
             warnings.warn(
                 "Both email and phone provided to search_people; email takes priority.",
                 stacklevel=2,
@@ -81,7 +82,9 @@ class PeopleAPI:
                 raise
 
         # Retry without email
-        logger.info("Email assignment failed for %s %s, retrying without email", first_name, last_name)
+        logger.info(
+            "Email assignment failed for %s %s, retrying without email", first_name, last_name
+        )
         attributes.pop("email_addresses", None)
         result = await self._client.post("/people/v2/people", data=payload)
         person = self._simplify_person(result["data"])
@@ -90,7 +93,12 @@ class PeopleAPI:
         try:
             await self._client.post(
                 f"/people/v2/people/{person['id']}/emails",
-                data={"data": {"type": "Email", "attributes": {"address": email, "location": "Home", "primary": True}}},
+                data={
+                    "data": {
+                        "type": "Email",
+                        "attributes": {"address": email, "location": "Home", "primary": True},
+                    }
+                },
             )
             person["email"] = email
             return person
@@ -129,9 +137,7 @@ class PeopleAPI:
         if is_primary is not None:
             attributes["primary"] = is_primary
         payload: dict[str, Any] = {"data": {"type": "Email", "attributes": attributes}}
-        result = await self._client.post(
-            f"/people/v2/people/{person_id}/emails", data=payload
-        )
+        result = await self._client.post(f"/people/v2/people/{person_id}/emails", data=payload)
         return self._simplify_email(result["data"])
 
     async def update_email(
@@ -156,7 +162,13 @@ class PeopleAPI:
         )
         return self._simplify_email(result["data"])
 
-    async def add_phone_number(self, person_id: str, number: str, location: str | None = None, is_primary: bool | None = None) -> dict[str, Any]:
+    async def add_phone_number(
+        self,
+        person_id: str,
+        number: str,
+        location: str | None = None,
+        is_primary: bool | None = None,
+    ) -> dict[str, Any]:
         """Add a phone number to a person."""
         attributes: dict[str, Any] = {"number": number}
         if location is not None:
@@ -164,10 +176,19 @@ class PeopleAPI:
         if is_primary is not None:
             attributes["primary"] = is_primary
         payload: dict[str, Any] = {"data": {"type": "PhoneNumber", "attributes": attributes}}
-        result = await self._client.post(f"/people/v2/people/{person_id}/phone_numbers", data=payload)
+        result = await self._client.post(
+            f"/people/v2/people/{person_id}/phone_numbers", data=payload
+        )
         return self._simplify_phone(result["data"])
 
-    async def update_phone_number(self, person_id: str, phone_id: str, number: str | None = None, location: str | None = None, is_primary: bool | None = None) -> dict[str, Any]:
+    async def update_phone_number(
+        self,
+        person_id: str,
+        phone_id: str,
+        number: str | None = None,
+        location: str | None = None,
+        is_primary: bool | None = None,
+    ) -> dict[str, Any]:
         """Update a phone number."""
         attributes: dict[str, Any] = {}
         if number is not None:
@@ -177,12 +198,25 @@ class PeopleAPI:
         if is_primary is not None:
             attributes["primary"] = is_primary
         payload: dict[str, Any] = {"data": {"type": "PhoneNumber", "attributes": attributes}}
-        result = await self._client.patch(f"/people/v2/people/{person_id}/phone_numbers/{phone_id}", data=payload)
+        result = await self._client.patch(
+            f"/people/v2/people/{person_id}/phone_numbers/{phone_id}", data=payload
+        )
         return self._simplify_phone(result["data"])
 
-    async def add_address(self, person_id: str, street: str, city: str, state: str, zip: str, location: str | None = None, is_primary: bool | None = None) -> dict[str, Any]:
+    async def add_address(
+        self,
+        person_id: str,
+        street: str,
+        city: str,
+        state: str,
+        zip_code: str,
+        location: str | None = None,
+        is_primary: bool | None = None,
+    ) -> dict[str, Any]:
         """Add an address to a person."""
-        attributes: dict[str, Any] = {"street": street, "city": city, "state": state, "zip": zip}
+        attributes: dict[str, Any] = {
+            "street": street, "city": city, "state": state, "zip": zip_code,
+        }
         if location is not None:
             attributes["location"] = location
         if is_primary is not None:
@@ -191,17 +225,35 @@ class PeopleAPI:
         result = await self._client.post(f"/people/v2/people/{person_id}/addresses", data=payload)
         return self._simplify_address(result["data"])
 
-    async def update_address(self, person_id: str, address_id: str, street: str | None = None, city: str | None = None, state: str | None = None, zip: str | None = None, location: str | None = None, is_primary: bool | None = None) -> dict[str, Any]:
+    async def update_address(
+        self,
+        person_id: str,
+        address_id: str,
+        street: str | None = None,
+        city: str | None = None,
+        state: str | None = None,
+        zip_code: str | None = None,
+        location: str | None = None,
+        is_primary: bool | None = None,
+    ) -> dict[str, Any]:
         """Update an address."""
         attributes: dict[str, Any] = {}
-        if street is not None: attributes["street"] = street
-        if city is not None: attributes["city"] = city
-        if state is not None: attributes["state"] = state
-        if zip is not None: attributes["zip"] = zip
-        if location is not None: attributes["location"] = location
-        if is_primary is not None: attributes["primary"] = is_primary
+        if street is not None:
+            attributes["street"] = street
+        if city is not None:
+            attributes["city"] = city
+        if state is not None:
+            attributes["state"] = state
+        if zip_code is not None:
+            attributes["zip"] = zip_code
+        if location is not None:
+            attributes["location"] = location
+        if is_primary is not None:
+            attributes["primary"] = is_primary
         payload: dict[str, Any] = {"data": {"type": "Address", "attributes": attributes}}
-        result = await self._client.patch(f"/people/v2/people/{person_id}/addresses/{address_id}", data=payload)
+        result = await self._client.patch(
+            f"/people/v2/people/{person_id}/addresses/{address_id}", data=payload
+        )
         return self._simplify_address(result["data"])
 
     async def get_person_details(self, person_id: str) -> dict[str, Any]:
@@ -221,9 +273,21 @@ class PeopleAPI:
         result = await self._client.get(f"/people/v2/people/{person_id}/blockouts")
         return [self._simplify_blockout(b) for b in result.get("data", [])]
 
-    async def add_blockout(self, person_id: str, description: str, starts_at: str, ends_at: str, repeat_frequency: str | None = None, repeat_until: str | None = None) -> dict[str, Any]:
+    async def add_blockout(
+        self,
+        person_id: str,
+        description: str,
+        starts_at: str,
+        ends_at: str,
+        repeat_frequency: str | None = None,
+        repeat_until: str | None = None,
+    ) -> dict[str, Any]:
         """Create a blockout date for a person."""
-        attributes: dict[str, Any] = {"description": description, "starts_at": starts_at, "ends_at": ends_at}
+        attributes: dict[str, Any] = {
+            "description": description,
+            "starts_at": starts_at,
+            "ends_at": ends_at,
+        }
         if repeat_frequency is not None:
             attributes["repeat_frequency"] = repeat_frequency
         if repeat_until is not None:
@@ -232,7 +296,9 @@ class PeopleAPI:
         result = await self._client.post(f"/people/v2/people/{person_id}/blockouts", data=payload)
         return self._simplify_blockout(result["data"])
 
-    async def add_note(self, person_id: str, note: str, note_category_id: str | None = None) -> dict[str, Any]:
+    async def add_note(
+        self, person_id: str, note: str, note_category_id: str | None = None
+    ) -> dict[str, Any]:
         """Add a note to a person."""
         attributes: dict[str, Any] = {"note": note}
         if note_category_id is not None:

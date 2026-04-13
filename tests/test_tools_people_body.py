@@ -288,7 +288,7 @@ class TestAddAddressToolBody:
         }
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "add_address")
-        addr = await fn(person_id="1001", street="123 Main St", city="Springfield", state="IL", zip="62701")
+        addr = await fn(person_id="1001", street="123 Main St", city="Springfield", state="IL", zip_code="62701")
         assert addr["id"] == "4001"
         assert addr["city"] == "Springfield"
 
