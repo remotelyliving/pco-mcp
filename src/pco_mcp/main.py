@@ -29,6 +29,7 @@ from pco_mcp.db import create_engine, create_session_factory
 from pco_mcp.models import Base, OAuthSession, User
 from pco_mcp.oauth.pco_client import exchange_pco_code, get_pco_me
 from pco_mcp.tools._context import close_shared_client
+from pco_mcp.tools.calendar import register_calendar_tools
 from pco_mcp.tools.checkins import register_checkins_tools
 from pco_mcp.tools.people import register_people_tools
 from pco_mcp.tools.services import register_services_tools
@@ -131,6 +132,7 @@ def create_app() -> FastAPI:
     register_people_tools(mcp)
     register_services_tools(mcp)
     register_checkins_tools(mcp)
+    register_calendar_tools(mcp)
 
     # The raw MCP transport app (no OAuth baked in)
     mcp_app = mcp.http_app(path="/mcp")
