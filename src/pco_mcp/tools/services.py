@@ -303,3 +303,78 @@ def register_services_tools(mcp: FastMCP) -> None:
         api = get_services_api()
         await api.delete_song(song_id)
         return {"status": "deleted"}
+
+    @mcp.tool(annotations=WRITE_ANNOTATIONS)
+    async def create_arrangement(
+        song_id: str,
+        name: str,
+        chord_chart: str | None = None,
+        bpm: float | None = None,
+        meter: str | None = None,
+        length: int | None = None,
+        chord_chart_key: str | None = None,
+        sequence: list[str] | None = None,
+        notes: str | None = None,
+    ) -> dict[str, Any]:
+        """Create an arrangement for a song with lyrics, chord charts, and key.
+
+        Use ChordPro format for chord_chart to embed chords inline: '[G]Amazing [C]grace'.
+        Plain text is lyrics-only. The sequence field takes section labels like ['Verse 1', 'Chorus'].
+        """
+        from pco_mcp.tools._context import get_services_api, safe_tool_call
+
+        api = get_services_api()
+        return await safe_tool_call(
+            api.create_arrangement(
+                song_id=song_id,
+                name=name,
+                chord_chart=chord_chart,
+                bpm=bpm,
+                meter=meter,
+                length=length,
+                chord_chart_key=chord_chart_key,
+                sequence=sequence,
+                notes=notes,
+            )
+        )
+
+    @mcp.tool(annotations=WRITE_ANNOTATIONS)
+    async def update_arrangement(
+        song_id: str,
+        arrangement_id: str,
+        name: str | None = None,
+        chord_chart: str | None = None,
+        bpm: float | None = None,
+        meter: str | None = None,
+        length: int | None = None,
+        chord_chart_key: str | None = None,
+        sequence: list[str] | None = None,
+        notes: str | None = None,
+    ) -> dict[str, Any]:
+        """Update an arrangement's metadata, lyrics, chord chart, or key."""
+        from pco_mcp.tools._context import get_services_api, safe_tool_call
+
+        api = get_services_api()
+        return await safe_tool_call(
+            api.update_arrangement(
+                song_id=song_id,
+                arrangement_id=arrangement_id,
+                name=name,
+                chord_chart=chord_chart,
+                bpm=bpm,
+                meter=meter,
+                length=length,
+                chord_chart_key=chord_chart_key,
+                sequence=sequence,
+                notes=notes,
+            )
+        )
+
+    @mcp.tool(annotations=DESTRUCTIVE_ANNOTATIONS)
+    async def delete_arrangement(song_id: str, arrangement_id: str) -> dict[str, Any]:
+        """Delete an arrangement from a song. This cannot be undone."""
+        from pco_mcp.tools._context import get_services_api
+
+        api = get_services_api()
+        await api.delete_arrangement(song_id, arrangement_id)
+        return {"status": "deleted"}

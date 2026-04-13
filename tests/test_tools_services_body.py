@@ -281,3 +281,63 @@ class TestDeleteSongToolBody:
         fn = _get_tool_fn(mcp, "delete_song")
         result = await fn(song_id="4001")
         assert result["status"] == "deleted"
+
+
+class TestCreateArrangementToolBody:
+    async def test_create_arrangement(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = {
+            "data": {
+                "type": "Arrangement",
+                "id": "1010",
+                "attributes": {
+                    "name": "Default",
+                    "bpm": 120.0,
+                    "length": 300,
+                    "meter": "4/4",
+                    "chord_chart": "[G]Amazing grace",
+                    "chord_chart_key": "G",
+                    "lyrics": "Amazing grace",
+                    "sequence": ["Verse 1"],
+                    "notes": "",
+                },
+            }
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "create_arrangement")
+        arr = await fn(song_id="4001", name="Default", chord_chart="[G]Amazing grace")
+        assert arr["id"] == "1010"
+        assert arr["name"] == "Default"
+
+
+class TestUpdateArrangementToolBody:
+    async def test_update_arrangement(self, mock_client: AsyncMock) -> None:
+        mock_client.patch.return_value = {
+            "data": {
+                "type": "Arrangement",
+                "id": "1001",
+                "attributes": {
+                    "name": "Standard",
+                    "bpm": 80.0,
+                    "length": 240,
+                    "meter": "4/4",
+                    "chord_chart": "[A]Amazing grace",
+                    "chord_chart_key": "A",
+                    "lyrics": "Amazing grace",
+                    "sequence": [],
+                    "notes": "",
+                },
+            }
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "update_arrangement")
+        arr = await fn(song_id="4001", arrangement_id="1001", bpm=80.0)
+        assert arr["bpm"] == 80.0
+
+
+class TestDeleteArrangementToolBody:
+    async def test_delete_arrangement(self, mock_client: AsyncMock) -> None:
+        mock_client.delete.return_value = None
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "delete_arrangement")
+        result = await fn(song_id="4001", arrangement_id="1001")
+        assert result["status"] == "deleted"
