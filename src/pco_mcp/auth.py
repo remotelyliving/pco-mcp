@@ -196,4 +196,19 @@ async def inject_pco_bearer(
                     "Authenticated request for person_id=%s", person_id
                 )
 
+    # Fallback: treat the bearer token as a raw PCO access token.
+    # This supports direct MCP clients (like pco-agent) that send the
+    # PCO access token directly rather than going through pco-mcp's
+    # own OAuth flow.
+    if auth_header.lower().startswith("bearer ") and "user" not in request.scope:
+        raw_token = auth_header[7:]
+        access_token = AccessToken(
+            token=raw_token,
+            client_id="direct",
+            scopes=["people", "services"],
+            expires_at=None,
+        )
+        request.scope["user"] = AuthenticatedUser(access_token)
+        logger.debug("Using raw Bearer token as PCO access token (direct client)")
+
     return await call_next(request)
