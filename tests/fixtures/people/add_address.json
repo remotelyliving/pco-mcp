@@ -1,0 +1,14 @@
+{
+    "data": {
+        "type": "Address",
+        "id": "4001",
+        "attributes": {
+            "street": "123 Main St",
+            "city": "Springfield",
+            "state": "IL",
+            "zip": "62701",
+            "location": "Home",
+            "primary": true
+        }
+    }
+}

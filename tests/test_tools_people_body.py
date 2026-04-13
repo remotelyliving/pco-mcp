@@ -281,6 +281,29 @@ class TestAddPhoneNumberToolBody:
         assert phone["id"] == "3001"
 
 
+class TestAddAddressToolBody:
+    async def test_add_address(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = {
+            "data": {"type": "Address", "id": "4001", "attributes": {"street": "123 Main St", "city": "Springfield", "state": "IL", "zip": "62701", "location": "Home", "primary": True}}
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "add_address")
+        addr = await fn(person_id="1001", street="123 Main St", city="Springfield", state="IL", zip="62701")
+        assert addr["id"] == "4001"
+        assert addr["city"] == "Springfield"
+
+
+class TestUpdateAddressToolBody:
+    async def test_update_address(self, mock_client: AsyncMock) -> None:
+        mock_client.patch.return_value = {
+            "data": {"type": "Address", "id": "4001", "attributes": {"street": "456 Oak Ave", "city": "Springfield", "state": "IL", "zip": "62702", "location": "Work", "primary": False}}
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "update_address")
+        addr = await fn(person_id="1001", address_id="4001", street="456 Oak Ave")
+        assert addr["street"] == "456 Oak Ave"
+
+
 class TestUpdatePhoneNumberToolBody:
     async def test_update_phone_number(self, mock_client: AsyncMock) -> None:
         mock_client.patch.return_value = {
