@@ -1,0 +1,8 @@
+{
+    "data": {
+        "type": "Card",
+        "id": "8001",
+        "attributes": {"stage": "Ready", "created_at": "2026-04-13T10:00:00Z", "completed_at": null},
+        "relationships": {"person": {"data": {"type": "Person", "id": "1001"}}}
+    }
+}

@@ -1,0 +1,7 @@
+{
+    "data": [
+        {"type": "Workflow", "id": "7001", "attributes": {"name": "New Member Follow-up", "completed_card_count": 12, "ready_card_count": 3, "total_cards_count": 15}},
+        {"type": "Workflow", "id": "7002", "attributes": {"name": "Baptism Prep", "completed_card_count": 5, "ready_card_count": 2, "total_cards_count": 7}}
+    ],
+    "meta": {"total_count": 2, "count": 2}
+}

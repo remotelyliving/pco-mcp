@@ -373,3 +373,41 @@ class TestUpdatePhoneNumber:
         assert "1001" in call_path
         assert "3001" in call_path
         assert "/phone_numbers/" in call_path
+
+
+class TestGetWorkflows:
+    async def test_returns_workflows(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = load_fixture("list_workflows.json")
+        api = PeopleAPI(mock_client)
+        workflows = await api.get_workflows()
+        assert len(workflows) == 2
+        assert workflows[0]["name"] == "New Member Follow-up"
+        assert workflows[0]["ready_card_count"] == 3
+        assert workflows[1]["name"] == "Baptism Prep"
+
+    async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = load_fixture("list_workflows.json")
+        api = PeopleAPI(mock_client)
+        await api.get_workflows()
+        call_path = mock_client.get.call_args.args[0]
+        assert "/workflows" in call_path
+
+
+class TestAddPersonToWorkflow:
+    async def test_returns_created_card(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("add_person_to_workflow.json")
+        api = PeopleAPI(mock_client)
+        card = await api.add_person_to_workflow("7001", "1001")
+        assert card["id"] == "8001"
+        assert card["stage"] == "Ready"
+        assert card["person_id"] == "1001"
+
+    async def test_sends_correct_payload(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("add_person_to_workflow.json")
+        api = PeopleAPI(mock_client)
+        await api.add_person_to_workflow("7001", "1001")
+        call_path = mock_client.post.call_args.args[0]
+        assert "7001" in call_path
+        assert "/cards" in call_path
+        data = mock_client.post.call_args.kwargs["data"]
+        assert data["data"]["attributes"]["person_id"] == 1001

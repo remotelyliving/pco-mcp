@@ -249,6 +249,43 @@ class PeopleAPI:
         )
         return [self._simplify_note(n) for n in result.get("data", [])]
 
+    async def get_workflows(self) -> list[dict[str, Any]]:
+        """List all workflows for the org."""
+        result = await self._client.get("/people/v2/workflows")
+        return [self._simplify_workflow(w) for w in result.get("data", [])]
+
+    async def add_person_to_workflow(self, workflow_id: str, person_id: str) -> dict[str, Any]:
+        """Add a person to a workflow (creates a card at the first step)."""
+        payload: dict[str, Any] = {
+            "data": {
+                "type": "Card",
+                "attributes": {"person_id": int(person_id)},
+            }
+        }
+        result = await self._client.post(f"/people/v2/workflows/{workflow_id}/cards", data=payload)
+        return self._simplify_workflow_card(result["data"])
+
+    def _simplify_workflow(self, raw: dict[str, Any]) -> dict[str, Any]:
+        attrs = raw.get("attributes", {})
+        return {
+            "id": raw["id"],
+            "name": attrs.get("name", ""),
+            "completed_card_count": attrs.get("completed_card_count", 0),
+            "ready_card_count": attrs.get("ready_card_count", 0),
+            "total_cards_count": attrs.get("total_cards_count", 0),
+        }
+
+    def _simplify_workflow_card(self, raw: dict[str, Any]) -> dict[str, Any]:
+        attrs = raw.get("attributes", {})
+        person_data = raw.get("relationships", {}).get("person", {}).get("data", {})
+        return {
+            "id": raw["id"],
+            "stage": attrs.get("stage"),
+            "created_at": attrs.get("created_at"),
+            "completed_at": attrs.get("completed_at"),
+            "person_id": person_data.get("id"),
+        }
+
     def _simplify_person(self, raw: dict[str, Any]) -> dict[str, Any]:
         """Flatten a JSON:API person record into a simple dict."""
         attrs = raw.get("attributes", {})

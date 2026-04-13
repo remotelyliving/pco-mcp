@@ -367,3 +367,27 @@ class TestUpdatePhoneNumberToolBody:
         fn = _get_tool_fn(mcp, "update_phone_number")
         phone = await fn(person_id="1001", phone_id="3001", location="Work")
         assert phone["location"] == "Work"
+
+
+class TestListWorkflowsToolBody:
+    async def test_list_workflows(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = {
+            "data": [{"type": "Workflow", "id": "7001", "attributes": {"name": "New Member Follow-up", "completed_card_count": 12, "ready_card_count": 3, "total_cards_count": 15}}]
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "list_workflows")
+        workflows = await fn()
+        assert len(workflows) == 1
+        assert workflows[0]["name"] == "New Member Follow-up"
+
+
+class TestAddPersonToWorkflowToolBody:
+    async def test_add_person_to_workflow(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = {
+            "data": {"type": "Card", "id": "8001", "attributes": {"stage": "Ready", "created_at": "2026-04-13T10:00:00Z", "completed_at": None}, "relationships": {"person": {"data": {"type": "Person", "id": "1001"}}}}
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "add_person_to_workflow")
+        card = await fn(workflow_id="7001", person_id="1001")
+        assert card["id"] == "8001"
+        assert card["stage"] == "Ready"

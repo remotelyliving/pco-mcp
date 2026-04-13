@@ -208,3 +208,18 @@ def register_people_tools(mcp: FastMCP) -> None:
         from pco_mcp.tools._context import get_people_api, safe_tool_call
         api = get_people_api()
         return await safe_tool_call(api.get_notes(person_id))
+
+    @mcp.tool(annotations=READ_ANNOTATIONS)
+    async def list_workflows() -> list[dict[str, Any]]:
+        """List all workflows in the org (e.g., 'New Member Follow-up',
+        'Baptism Prep'). Shows card counts for each workflow."""
+        from pco_mcp.tools._context import get_people_api, safe_tool_call
+        api = get_people_api()
+        return await safe_tool_call(api.get_workflows())
+
+    @mcp.tool(annotations=WRITE_ANNOTATIONS)
+    async def add_person_to_workflow(workflow_id: str, person_id: str) -> dict[str, Any]:
+        """Add a person to a workflow. Creates a new card at the first step."""
+        from pco_mcp.tools._context import get_people_api, safe_tool_call
+        api = get_people_api()
+        return await safe_tool_call(api.add_person_to_workflow(workflow_id, person_id))
