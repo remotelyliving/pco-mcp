@@ -1,0 +1,11 @@
+{
+    "data": {
+        "type": "Email",
+        "id": "2001",
+        "attributes": {
+            "address": "alice@work.com",
+            "location": "Work",
+            "primary": false
+        }
+    }
+}

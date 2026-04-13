@@ -110,3 +110,53 @@ class TestGetPersonBlockouts:
         api = PeopleAPI(mock_client)
         blockouts = await api.get_person_blockouts("9999")
         assert blockouts == []
+
+
+class TestAddEmail:
+    async def test_returns_created_email(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("add_email.json")
+        api = PeopleAPI(mock_client)
+        email = await api.add_email("1001", address="alice@example.com", location="Home", is_primary=True)
+        assert email["id"] == "2001"
+        assert email["address"] == "alice@example.com"
+        assert email["location"] == "Home"
+        assert email["primary"] is True
+
+    async def test_sends_correct_payload(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("add_email.json")
+        api = PeopleAPI(mock_client)
+        await api.add_email("1001", address="alice@example.com")
+        call_path = mock_client.post.call_args.args[0]
+        assert "1001" in call_path
+        assert "/emails" in call_path
+        data = mock_client.post.call_args.kwargs["data"]
+        assert data["data"]["type"] == "Email"
+        assert data["data"]["attributes"]["address"] == "alice@example.com"
+
+    async def test_only_required_fields(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("add_email.json")
+        api = PeopleAPI(mock_client)
+        await api.add_email("1001", address="alice@example.com")
+        data = mock_client.post.call_args.kwargs["data"]
+        attrs = data["data"]["attributes"]
+        assert "address" in attrs
+        assert "location" not in attrs
+        assert "primary" not in attrs
+
+
+class TestUpdateEmail:
+    async def test_returns_updated_email(self, mock_client: AsyncMock) -> None:
+        mock_client.patch.return_value = load_fixture("update_email.json")
+        api = PeopleAPI(mock_client)
+        email = await api.update_email("1001", "2001", address="alice@work.com", location="Work")
+        assert email["address"] == "alice@work.com"
+        assert email["location"] == "Work"
+
+    async def test_sends_patch_to_correct_endpoint(self, mock_client: AsyncMock) -> None:
+        mock_client.patch.return_value = load_fixture("update_email.json")
+        api = PeopleAPI(mock_client)
+        await api.update_email("1001", "2001", location="Work")
+        call_path = mock_client.patch.call_args.args[0]
+        assert "1001" in call_path
+        assert "2001" in call_path
+        assert "/emails/" in call_path

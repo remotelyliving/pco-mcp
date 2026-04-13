@@ -115,6 +115,47 @@ class PeopleAPI:
         result = await self._client.patch(f"/people/v2/people/{person_id}", data=payload)
         return self._simplify_person(result["data"])
 
+    async def add_email(
+        self,
+        person_id: str,
+        address: str,
+        location: str | None = None,
+        is_primary: bool | None = None,
+    ) -> dict[str, Any]:
+        """Add an email address to a person."""
+        attributes: dict[str, Any] = {"address": address}
+        if location is not None:
+            attributes["location"] = location
+        if is_primary is not None:
+            attributes["primary"] = is_primary
+        payload: dict[str, Any] = {"data": {"type": "Email", "attributes": attributes}}
+        result = await self._client.post(
+            f"/people/v2/people/{person_id}/emails", data=payload
+        )
+        return self._simplify_email(result["data"])
+
+    async def update_email(
+        self,
+        person_id: str,
+        email_id: str,
+        address: str | None = None,
+        location: str | None = None,
+        is_primary: bool | None = None,
+    ) -> dict[str, Any]:
+        """Update an email address."""
+        attributes: dict[str, Any] = {}
+        if address is not None:
+            attributes["address"] = address
+        if location is not None:
+            attributes["location"] = location
+        if is_primary is not None:
+            attributes["primary"] = is_primary
+        payload: dict[str, Any] = {"data": {"type": "Email", "attributes": attributes}}
+        result = await self._client.patch(
+            f"/people/v2/people/{person_id}/emails/{email_id}", data=payload
+        )
+        return self._simplify_email(result["data"])
+
     async def get_person_blockouts(self, person_id: str) -> list[dict[str, Any]]:
         """Get blockout dates for a person."""
         result = await self._client.get(f"/people/v2/people/{person_id}/blockouts")
@@ -145,6 +186,16 @@ class PeopleAPI:
             "name": attrs.get("name", ""),
             "description": attrs.get("description"),
             "total_count": attrs.get("total_count", 0),
+        }
+
+    def _simplify_email(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """Flatten a JSON:API email record."""
+        attrs = raw.get("attributes", {})
+        return {
+            "id": raw["id"],
+            "address": attrs.get("address", ""),
+            "location": attrs.get("location"),
+            "primary": attrs.get("primary", False),
         }
 
     def _simplify_blockout(self, raw: dict[str, Any]) -> dict[str, Any]:
