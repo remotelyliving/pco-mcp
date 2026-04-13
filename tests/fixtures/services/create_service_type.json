@@ -1,0 +1,11 @@
+{
+    "data": {
+        "type": "ServiceType",
+        "id": "210",
+        "attributes": {
+            "name": "Wednesday Night",
+            "frequency": "Every 1 week",
+            "last_plan_from": null
+        }
+    }
+}

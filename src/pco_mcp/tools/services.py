@@ -8,6 +8,20 @@ from pco_mcp.tools import DESTRUCTIVE_ANNOTATIONS, READ_ANNOTATIONS, WRITE_ANNOT
 def register_services_tools(mcp: FastMCP) -> None:
     """Register all Services module tools on the given FastMCP instance."""
 
+    @mcp.tool(annotations=WRITE_ANNOTATIONS)
+    async def create_service_type(
+        name: str, frequency: str | None = None
+    ) -> dict[str, Any]:
+        """Create a new service type (e.g., 'Sunday Morning', 'Wednesday Night').
+
+        A blank org needs service types before plans can be created.
+        Frequency examples: 'Every 1 week', 'Every 2 weeks'.
+        """
+        from pco_mcp.tools._context import get_services_api, safe_tool_call
+
+        api = get_services_api()
+        return await safe_tool_call(api.create_service_type(name, frequency=frequency))
+
     @mcp.tool(annotations=READ_ANNOTATIONS)
     async def list_service_types() -> list[dict[str, Any]]:
         """List all service types in Planning Center Services.

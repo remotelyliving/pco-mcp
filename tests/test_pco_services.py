@@ -689,3 +689,31 @@ class TestFlagMissingCCLI:
         await api.flag_missing_ccli()
         call_kwargs = mock_client.get_all.call_args.kwargs
         assert call_kwargs.get("max_pages", 50) <= 10
+
+
+class TestCreateServiceType:
+    async def test_returns_created_service_type(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("create_service_type.json")
+        api = ServicesAPI(mock_client)
+        st = await api.create_service_type("Wednesday Night", frequency="Every 1 week")
+        assert st["id"] == "210"
+        assert st["name"] == "Wednesday Night"
+        assert st["frequency"] == "Every 1 week"
+
+    async def test_sends_correct_payload(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("create_service_type.json")
+        api = ServicesAPI(mock_client)
+        await api.create_service_type("Wednesday Night", frequency="Every 1 week")
+        call_path = mock_client.post.call_args.args[0]
+        assert "service_types" in call_path
+        data = mock_client.post.call_args.kwargs["data"]
+        assert data["data"]["type"] == "ServiceType"
+        assert data["data"]["attributes"]["name"] == "Wednesday Night"
+        assert data["data"]["attributes"]["frequency"] == "Every 1 week"
+
+    async def test_only_required_fields(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("create_service_type.json")
+        api = ServicesAPI(mock_client)
+        await api.create_service_type("Wednesday Night")
+        data = mock_client.post.call_args.kwargs["data"]
+        assert "frequency" not in data["data"]["attributes"]

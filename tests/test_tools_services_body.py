@@ -578,3 +578,23 @@ class TestFlagMissingCCLIToolBody:
         assert result["total_scanned"] == 2
         assert result["total_missing"] == 1
         assert result["songs"][0]["title"] == "Missing CCLI Song"
+
+
+class TestCreateServiceTypeToolBody:
+    async def test_create_service_type(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = {
+            "data": {
+                "type": "ServiceType",
+                "id": "210",
+                "attributes": {
+                    "name": "Wednesday Night",
+                    "frequency": "Every 1 week",
+                    "last_plan_from": None,
+                },
+            }
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "create_service_type")
+        st = await fn(name="Wednesday Night", frequency="Every 1 week")
+        assert st["id"] == "210"
+        assert st["name"] == "Wednesday Night"

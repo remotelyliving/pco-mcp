@@ -9,6 +9,17 @@ class ServicesAPI:
     def __init__(self, client: PCOClient) -> None:
         self._client = client
 
+    async def create_service_type(
+        self, name: str, frequency: str | None = None
+    ) -> dict[str, Any]:
+        """Create a new service type."""
+        attributes: dict[str, Any] = {"name": name}
+        if frequency is not None:
+            attributes["frequency"] = frequency
+        payload: dict[str, Any] = {"data": {"type": "ServiceType", "attributes": attributes}}
+        result = await self._client.post("/services/v2/service_types", data=payload)
+        return self._simplify_service_type(result["data"])
+
     async def list_service_types(self) -> list[dict[str, Any]]:
         """List all service types."""
         result = await self._client.get("/services/v2/service_types")
