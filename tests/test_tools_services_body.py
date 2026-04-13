@@ -341,3 +341,74 @@ class TestDeleteArrangementToolBody:
         fn = _get_tool_fn(mcp, "delete_arrangement")
         result = await fn(song_id="4001", arrangement_id="1001")
         assert result["status"] == "deleted"
+
+
+class TestCreateAttachmentToolBody:
+    async def test_create_attachment(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = {
+            "data": {
+                "type": "Attachment",
+                "id": "5001",
+                "attributes": {
+                    "filename": "chart.pdf",
+                    "content_type": "application/pdf",
+                    "file_size": None,
+                    "url": None,
+                },
+                "links": {"self": "https://api.planningcenteronline.com/services/v2/attachments/5001"},
+            },
+            "meta": {"upload": {"url": "https://s3.example.com/upload", "fields": {}}},
+        }
+        mock_client.patch.return_value = {
+            "data": {
+                "type": "Attachment",
+                "id": "5001",
+                "attributes": {
+                    "filename": "chart.pdf",
+                    "content_type": "application/pdf",
+                    "file_size": 1234,
+                    "url": "https://cdn.example.com/chart.pdf",
+                },
+            }
+        }
+        mock_http = AsyncMock()
+        mock_fetch_response = AsyncMock()
+        mock_fetch_response.content = b"pdf-bytes"
+        mock_fetch_response.raise_for_status = lambda: None
+        mock_http.get.return_value = mock_fetch_response
+        mock_client._client = mock_http
+        mock_client.put_raw = AsyncMock()
+
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "create_attachment")
+        result = await fn(
+            song_id="4001",
+            arrangement_id="1001",
+            url="https://example.com/chart.pdf",
+            filename="chart.pdf",
+            content_type="application/pdf",
+        )
+        assert result["id"] == "5001"
+
+
+class TestListAttachmentsToolBody:
+    async def test_list_attachments(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = {
+            "data": [
+                {
+                    "type": "Attachment",
+                    "id": "5001",
+                    "attributes": {
+                        "filename": "chart.pdf",
+                        "content_type": "application/pdf",
+                        "file_size": 1234,
+                        "url": "https://cdn.example.com/chart.pdf",
+                    },
+                }
+            ]
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "list_attachments")
+        attachments = await fn(song_id="4001", arrangement_id="1001")
+        assert len(attachments) == 1
+        assert attachments[0]["filename"] == "chart.pdf"

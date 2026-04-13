@@ -378,3 +378,31 @@ def register_services_tools(mcp: FastMCP) -> None:
         api = get_services_api()
         await api.delete_arrangement(song_id, arrangement_id)
         return {"status": "deleted"}
+
+    @mcp.tool(annotations=WRITE_ANNOTATIONS)
+    async def create_attachment(
+        song_id: str,
+        arrangement_id: str,
+        url: str,
+        filename: str,
+        content_type: str,
+    ) -> dict[str, Any]:
+        """Upload a file attachment to an arrangement (PDF chord chart, MP3 reference track, etc.).
+
+        Provide a publicly accessible URL — the server fetches the file and uploads it to PCO.
+        Supported content types: application/pdf, audio/mpeg, image/png, image/jpeg, etc.
+        """
+        from pco_mcp.tools._context import get_services_api, safe_tool_call
+
+        api = get_services_api()
+        return await safe_tool_call(
+            api.create_attachment(song_id, arrangement_id, url, filename, content_type)
+        )
+
+    @mcp.tool(annotations=READ_ANNOTATIONS)
+    async def list_attachments(song_id: str, arrangement_id: str) -> list[dict[str, Any]]:
+        """List file attachments on an arrangement (PDFs, audio files, etc.)."""
+        from pco_mcp.tools._context import get_services_api, safe_tool_call
+
+        api = get_services_api()
+        return await safe_tool_call(api.list_attachments(song_id, arrangement_id))
