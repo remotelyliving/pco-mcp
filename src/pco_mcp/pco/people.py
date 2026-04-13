@@ -221,6 +221,23 @@ class PeopleAPI:
         result = await self._client.get(f"/people/v2/people/{person_id}/blockouts")
         return [self._simplify_blockout(b) for b in result.get("data", [])]
 
+    async def add_note(self, person_id: str, note: str, note_category_id: str | None = None) -> dict[str, Any]:
+        """Add a note to a person."""
+        attributes: dict[str, Any] = {"note": note}
+        if note_category_id is not None:
+            attributes["note_category_id"] = note_category_id
+        payload: dict[str, Any] = {"data": {"type": "Note", "attributes": attributes}}
+        result = await self._client.post(f"/people/v2/people/{person_id}/notes", data=payload)
+        return self._simplify_note(result["data"])
+
+    async def get_notes(self, person_id: str) -> list[dict[str, Any]]:
+        """Get notes for a person (most recent first, capped at 50)."""
+        result = await self._client.get(
+            f"/people/v2/people/{person_id}/notes",
+            params={"order": "-created_at", "per_page": 50},
+        )
+        return [self._simplify_note(n) for n in result.get("data", [])]
+
     def _simplify_person(self, raw: dict[str, Any]) -> dict[str, Any]:
         """Flatten a JSON:API person record into a simple dict."""
         attrs = raw.get("attributes", {})
@@ -292,4 +309,14 @@ class PeopleAPI:
             "repeat_frequency": attrs.get("repeat_frequency"),
             "starts_at": attrs.get("starts_at"),
             "ends_at": attrs.get("ends_at"),
+        }
+
+    def _simplify_note(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """Flatten a JSON:API note record."""
+        attrs = raw.get("attributes", {})
+        return {
+            "id": raw["id"],
+            "note": attrs.get("note", ""),
+            "created_at": attrs.get("created_at"),
+            "note_category_id": attrs.get("note_category_id"),
         }

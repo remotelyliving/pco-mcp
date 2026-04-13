@@ -183,3 +183,18 @@ def register_people_tools(mcp: FastMCP) -> None:
 
         api = get_people_api()
         return await safe_tool_call(api.get_person_blockouts(person_id))
+
+    @mcp.tool(annotations=WRITE_ANNOTATIONS)
+    async def add_note(person_id: str, note: str, note_category_id: str | None = None) -> dict[str, Any]:
+        """Add a pastoral or administrative note to a person's record.
+        If note_category_id is omitted, the note uses the default category."""
+        from pco_mcp.tools._context import get_people_api, safe_tool_call
+        api = get_people_api()
+        return await safe_tool_call(api.add_note(person_id, note=note, note_category_id=note_category_id))
+
+    @mcp.tool(annotations=READ_ANNOTATIONS)
+    async def list_notes(person_id: str) -> list[dict[str, Any]]:
+        """List notes on a person's record, most recent first (up to 50)."""
+        from pco_mcp.tools._context import get_people_api, safe_tool_call
+        api = get_people_api()
+        return await safe_tool_call(api.get_notes(person_id))

@@ -272,6 +272,51 @@ class TestGetPersonDetails:
         assert any("/addresses" in p for p in paths)
 
 
+class TestAddNote:
+    async def test_returns_created_note(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("add_note.json")
+        api = PeopleAPI(mock_client)
+        note = await api.add_note("1001", note="Had a great conversation about volunteering.")
+        assert note["id"] == "5001"
+        assert note["note"] == "Had a great conversation about volunteering."
+
+    async def test_sends_correct_payload(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("add_note.json")
+        api = PeopleAPI(mock_client)
+        await api.add_note("1001", note="Test note", note_category_id="100")
+        call_path = mock_client.post.call_args.args[0]
+        assert "1001" in call_path
+        assert "/notes" in call_path
+        data = mock_client.post.call_args.kwargs["data"]
+        assert data["data"]["attributes"]["note"] == "Test note"
+        assert data["data"]["attributes"]["note_category_id"] == "100"
+
+    async def test_optional_category(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("add_note.json")
+        api = PeopleAPI(mock_client)
+        await api.add_note("1001", note="Test note")
+        data = mock_client.post.call_args.kwargs["data"]
+        assert "note_category_id" not in data["data"]["attributes"]
+
+
+class TestGetNotes:
+    async def test_returns_notes_list(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = load_fixture("list_notes.json")
+        api = PeopleAPI(mock_client)
+        notes = await api.get_notes("1001")
+        assert len(notes) == 2
+        assert notes[0]["note"] == "Had a great conversation about volunteering."
+        assert notes[1]["id"] == "5002"
+
+    async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = load_fixture("list_notes.json")
+        api = PeopleAPI(mock_client)
+        await api.get_notes("1001")
+        call_path = mock_client.get.call_args.args[0]
+        assert "1001" in call_path
+        assert "/notes" in call_path
+
+
 class TestUpdatePhoneNumber:
     async def test_returns_updated_phone(self, mock_client: AsyncMock) -> None:
         mock_client.patch.return_value = load_fixture("update_phone_number.json")

@@ -319,6 +319,29 @@ class TestListPersonDetailsToolBody:
         assert "addresses" in details
 
 
+class TestAddNoteToolBody:
+    async def test_add_note(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = {
+            "data": {"type": "Note", "id": "5001", "attributes": {"note": "Test note.", "created_at": "2026-04-13T10:00:00Z", "note_category_id": None}}
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "add_note")
+        note = await fn(person_id="1001", note="Test note.")
+        assert note["id"] == "5001"
+
+
+class TestListNotesToolBody:
+    async def test_list_notes(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = {
+            "data": [{"type": "Note", "id": "5001", "attributes": {"note": "A note.", "created_at": "2026-04-13T10:00:00Z", "note_category_id": "100"}}]
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "list_notes")
+        notes = await fn(person_id="1001")
+        assert len(notes) == 1
+        assert notes[0]["note"] == "A note."
+
+
 class TestUpdatePhoneNumberToolBody:
     async def test_update_phone_number(self, mock_client: AsyncMock) -> None:
         mock_client.patch.return_value = {
