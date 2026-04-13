@@ -23,7 +23,10 @@ class CheckInsAPI:
         start_date: str | None = None,
         end_date: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Get check-in records for an event, optionally filtered by date. Capped at ~500 records."""
+        """Get check-in records for an event, optionally filtered by date.
+
+        Capped at ~500 records.
+        """
         params: dict[str, Any] = {"per_page": 25}
         if start_date:
             params["where[created_at][gte]"] = start_date
