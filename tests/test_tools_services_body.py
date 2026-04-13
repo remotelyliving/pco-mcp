@@ -198,3 +198,86 @@ class TestScheduleTeamMemberToolBody:
         )
         assert result["id"] == "503"
         assert result["team_position_name"] == "Pianist"
+
+
+class TestGetSongToolBody:
+    async def test_get_song(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = {
+            "data": {
+                "type": "Song",
+                "id": "4001",
+                "attributes": {
+                    "title": "Amazing Grace",
+                    "author": "John Newton",
+                    "copyright": "Public Domain",
+                    "ccli_number": 4669344,
+                    "themes": "Grace",
+                    "admin": "",
+                    "created_at": "2025-01-15T10:00:00Z",
+                    "last_scheduled_at": "2026-03-30T09:00:00Z",
+                },
+            }
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "get_song")
+        song = await fn(song_id="4001")
+        assert song["id"] == "4001"
+        assert song["title"] == "Amazing Grace"
+
+
+class TestCreateSongToolBody:
+    async def test_create_song(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = {
+            "data": {
+                "type": "Song",
+                "id": "4010",
+                "attributes": {
+                    "title": "New Song",
+                    "author": "Test Author",
+                    "copyright": "",
+                    "ccli_number": None,
+                    "themes": "",
+                    "admin": "",
+                    "created_at": "2026-04-13T10:00:00Z",
+                    "last_scheduled_at": None,
+                },
+            }
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "create_song")
+        song = await fn(title="New Song", author="Test Author")
+        assert song["id"] == "4010"
+        assert song["title"] == "New Song"
+
+
+class TestUpdateSongToolBody:
+    async def test_update_song(self, mock_client: AsyncMock) -> None:
+        mock_client.patch.return_value = {
+            "data": {
+                "type": "Song",
+                "id": "4001",
+                "attributes": {
+                    "title": "Amazing Grace",
+                    "author": "John Newton",
+                    "copyright": "Public Domain",
+                    "ccli_number": 1234567,
+                    "themes": "",
+                    "admin": "",
+                    "created_at": "2025-01-15T10:00:00Z",
+                    "last_scheduled_at": "2026-03-30T09:00:00Z",
+                },
+            }
+        }
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "update_song")
+        song = await fn(song_id="4001", ccli_number=1234567)
+        assert song["ccli_number"] == 1234567
+
+
+class TestDeleteSongToolBody:
+    async def test_delete_song(self, mock_client: AsyncMock) -> None:
+        mock_client.delete.return_value = None
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "delete_song")
+        result = await fn(song_id="4001")
+        assert result["status"] == "deleted"

@@ -233,3 +233,73 @@ def register_services_tools(mcp: FastMCP) -> None:
         api = get_services_api()
         await api.remove_team_member(service_type_id, plan_id, team_member_id)
         return {"status": "removed"}
+
+    @mcp.tool(annotations=READ_ANNOTATIONS)
+    async def get_song(song_id: str) -> dict[str, Any]:
+        """Get full details for a song including title, author, copyright, CCLI number, themes, and admin notes."""
+        from pco_mcp.tools._context import get_services_api, safe_tool_call
+
+        api = get_services_api()
+        return await safe_tool_call(api.get_song(song_id))
+
+    @mcp.tool(annotations=WRITE_ANNOTATIONS)
+    async def create_song(
+        title: str,
+        author: str | None = None,
+        copyright: str | None = None,
+        ccli_number: int | None = None,
+        themes: str | None = None,
+        admin: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a new song in the Planning Center song library.
+
+        After creation, use create_arrangement to add lyrics, chord charts, and keys.
+        """
+        from pco_mcp.tools._context import get_services_api, safe_tool_call
+
+        api = get_services_api()
+        return await safe_tool_call(
+            api.create_song(
+                title=title,
+                author=author,
+                copyright=copyright,
+                ccli_number=ccli_number,
+                themes=themes,
+                admin=admin,
+            )
+        )
+
+    @mcp.tool(annotations=WRITE_ANNOTATIONS)
+    async def update_song(
+        song_id: str,
+        title: str | None = None,
+        author: str | None = None,
+        copyright: str | None = None,
+        ccli_number: int | None = None,
+        themes: str | None = None,
+        admin: str | None = None,
+    ) -> dict[str, Any]:
+        """Update an existing song's metadata. Useful for populating missing CCLI numbers."""
+        from pco_mcp.tools._context import get_services_api, safe_tool_call
+
+        api = get_services_api()
+        return await safe_tool_call(
+            api.update_song(
+                song_id,
+                title=title,
+                author=author,
+                copyright=copyright,
+                ccli_number=ccli_number,
+                themes=themes,
+                admin=admin,
+            )
+        )
+
+    @mcp.tool(annotations=DESTRUCTIVE_ANNOTATIONS)
+    async def delete_song(song_id: str) -> dict[str, Any]:
+        """Delete a song and all its arrangements and attachments. This cannot be undone."""
+        from pco_mcp.tools._context import get_services_api
+
+        api = get_services_api()
+        await api.delete_song(song_id)
+        return {"status": "deleted"}
