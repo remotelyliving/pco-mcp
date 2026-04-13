@@ -360,6 +360,84 @@ class ServicesAPI:
         )
         return [self._simplify_needed_position(np) for np in result.get("data", [])]
 
+    async def upload_attachment(
+        self,
+        create_url: str,
+        source_url: str,
+        filename: str,
+        content_type: str,
+    ) -> dict[str, Any]:
+        """Shared 3-step S3 upload flow.
+
+        1. POST to create_url to create attachment record and get presigned URL
+        2. Fetch file from source_url, PUT bytes to presigned URL
+        3. PATCH attachment to mark upload complete
+        """
+        # Step 1: Create attachment record
+        payload: dict[str, Any] = {
+            "data": {
+                "type": "Attachment",
+                "attributes": {
+                    "filename": filename,
+                    "content_type": content_type,
+                },
+            }
+        }
+        create_result = await self._client.post(create_url, data=payload)
+        attachment_id = create_result["data"]["id"]
+        upload_url = create_result["meta"]["upload"]["url"]
+
+        # Step 2: Fetch file from source URL and upload to S3
+        response = await self._client._client.get(source_url)
+        response.raise_for_status()
+        file_bytes = response.content
+        await self._client.put_raw(upload_url, data=file_bytes, content_type=content_type)
+
+        # Step 3: Mark upload complete
+        complete_payload: dict[str, Any] = {
+            "data": {
+                "type": "Attachment",
+                "attributes": {"remote_link": None},
+            }
+        }
+        result = await self._client.patch(
+            f"/services/v2/attachments/{attachment_id}", data=complete_payload
+        )
+        return self._simplify_attachment(result["data"])
+
+    async def create_attachment(
+        self,
+        song_id: str,
+        arrangement_id: str,
+        url: str,
+        filename: str,
+        content_type: str,
+    ) -> dict[str, Any]:
+        """Create a file attachment on an arrangement (PDF, MP3, etc.)."""
+        create_url = (
+            f"/services/v2/songs/{song_id}/arrangements/{arrangement_id}/attachments"
+        )
+        return await self.upload_attachment(create_url, url, filename, content_type)
+
+    async def list_attachments(
+        self, song_id: str, arrangement_id: str
+    ) -> list[dict[str, Any]]:
+        """List attachments for an arrangement."""
+        result = await self._client.get(
+            f"/services/v2/songs/{song_id}/arrangements/{arrangement_id}/attachments"
+        )
+        return [self._simplify_attachment(a) for a in result.get("data", [])]
+
+    def _simplify_attachment(self, raw: dict[str, Any]) -> dict[str, Any]:
+        attrs = raw.get("attributes", {})
+        return {
+            "id": raw["id"],
+            "filename": attrs.get("filename", ""),
+            "content_type": attrs.get("content_type"),
+            "file_size": attrs.get("file_size"),
+            "url": attrs.get("url"),
+        }
+
     def _simplify_service_type(self, raw: dict[str, Any]) -> dict[str, Any]:
         attrs = raw.get("attributes", {})
         return {

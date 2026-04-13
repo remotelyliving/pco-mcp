@@ -1,0 +1,22 @@
+{
+    "data": {
+        "type": "Attachment",
+        "id": "5001",
+        "attributes": {
+            "filename": "chord-chart.pdf",
+            "content_type": "application/pdf",
+            "file_size": null,
+            "url": null,
+            "allow_mp3_download": false
+        },
+        "links": {
+            "self": "https://api.planningcenteronline.com/services/v2/attachments/5001"
+        }
+    },
+    "meta": {
+        "upload": {
+            "url": "https://s3.amazonaws.com/presigned-upload-url",
+            "fields": {}
+        }
+    }
+}

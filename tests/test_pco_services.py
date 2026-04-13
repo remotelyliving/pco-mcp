@@ -482,3 +482,84 @@ class TestDeleteArrangement:
         call_path = mock_client.delete.call_args.args[0]
         assert "4001" in call_path
         assert "1001" in call_path
+
+
+class TestUploadAttachment:
+    async def test_three_step_upload_flow(self, mock_client: AsyncMock) -> None:
+        """Verify the helper does POST -> fetch URL -> PUT bytes -> PATCH complete."""
+        mock_client.post.return_value = load_fixture("create_attachment.json")
+        mock_client.patch.return_value = load_fixture("create_attachment_upload.json")
+        # Mock the HTTP client for fetching the source URL and S3 PUT
+        mock_http = AsyncMock()
+        mock_fetch_response = AsyncMock()
+        mock_fetch_response.content = b"fake-pdf-bytes"
+        mock_fetch_response.raise_for_status = lambda: None
+        mock_http.get.return_value = mock_fetch_response
+        mock_client._client = mock_http
+        mock_client.put_raw = AsyncMock()
+
+        api = ServicesAPI(mock_client)
+        result = await api.upload_attachment(
+            create_url="/services/v2/songs/4001/arrangements/1001/attachments",
+            source_url="https://example.com/chord-chart.pdf",
+            filename="chord-chart.pdf",
+            content_type="application/pdf",
+        )
+        assert result["id"] == "5001"
+        assert result["filename"] == "chord-chart.pdf"
+        # Verify POST was called to create the record
+        mock_client.post.assert_called_once()
+        # Verify PUT was called to upload bytes to S3
+        mock_client.put_raw.assert_called_once_with(
+            "https://s3.amazonaws.com/presigned-upload-url",
+            data=b"fake-pdf-bytes",
+            content_type="application/pdf",
+        )
+        # Verify PATCH was called to mark upload complete
+        mock_client.patch.assert_called_once()
+
+
+class TestCreateAttachment:
+    async def test_calls_upload_attachment(self, mock_client: AsyncMock) -> None:
+        mock_client.post.return_value = load_fixture("create_attachment.json")
+        mock_client.patch.return_value = load_fixture("create_attachment_upload.json")
+        mock_http = AsyncMock()
+        mock_fetch_response = AsyncMock()
+        mock_fetch_response.content = b"fake-pdf-bytes"
+        mock_fetch_response.raise_for_status = lambda: None
+        mock_http.get.return_value = mock_fetch_response
+        mock_client._client = mock_http
+        mock_client.put_raw = AsyncMock()
+
+        api = ServicesAPI(mock_client)
+        result = await api.create_attachment(
+            song_id="4001",
+            arrangement_id="1001",
+            url="https://example.com/chord-chart.pdf",
+            filename="chord-chart.pdf",
+            content_type="application/pdf",
+        )
+        assert result["id"] == "5001"
+        call_path = mock_client.post.call_args.args[0]
+        assert "4001" in call_path
+        assert "1001" in call_path
+        assert "attachments" in call_path
+
+
+class TestListAttachments:
+    async def test_returns_attachments(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = load_fixture("list_attachments.json")
+        api = ServicesAPI(mock_client)
+        attachments = await api.list_attachments("4001", "1001")
+        assert len(attachments) == 2
+        assert attachments[0]["filename"] == "chord-chart.pdf"
+        assert attachments[1]["content_type"] == "audio/mpeg"
+
+    async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
+        mock_client.get.return_value = load_fixture("list_attachments.json")
+        api = ServicesAPI(mock_client)
+        await api.list_attachments("4001", "1001")
+        call_path = mock_client.get.call_args.args[0]
+        assert "4001" in call_path
+        assert "1001" in call_path
+        assert "attachments" in call_path

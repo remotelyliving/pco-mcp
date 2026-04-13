@@ -1,0 +1,12 @@
+{
+    "data": {
+        "type": "Attachment",
+        "id": "5001",
+        "attributes": {
+            "filename": "chord-chart.pdf",
+            "content_type": "application/pdf",
+            "file_size": 12345,
+            "url": "https://cdn.planningcenteronline.com/chord-chart.pdf"
+        }
+    }
+}

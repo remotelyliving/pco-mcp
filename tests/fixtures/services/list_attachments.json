@@ -1,0 +1,25 @@
+{
+    "data": [
+        {
+            "type": "Attachment",
+            "id": "5001",
+            "attributes": {
+                "filename": "chord-chart.pdf",
+                "content_type": "application/pdf",
+                "file_size": 12345,
+                "url": "https://cdn.planningcenteronline.com/chord-chart.pdf"
+            }
+        },
+        {
+            "type": "Attachment",
+            "id": "5002",
+            "attributes": {
+                "filename": "reference-track.mp3",
+                "content_type": "audio/mpeg",
+                "file_size": 5000000,
+                "url": "https://cdn.planningcenteronline.com/reference-track.mp3"
+            }
+        }
+    ],
+    "meta": {"total_count": 2, "count": 2}
+}
