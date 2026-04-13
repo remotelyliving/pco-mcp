@@ -183,3 +183,56 @@ class TestPCOClientPagination:
         assert len(results) == 2
         assert results[0]["id"] == "1"
         assert results[1]["id"] == "2"
+
+
+class TestPutRaw:
+    async def test_put_raw_sends_bytes(self) -> None:
+        import httpx
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_http = AsyncMock(spec=httpx.AsyncClient)
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.is_success = True
+        mock_response.status_code = 200
+        mock_response.headers = {}
+        mock_http.put.return_value = mock_response
+
+        client = PCOClient(
+            base_url="https://api.example.com",
+            access_token="test-token",
+            http_client=mock_http,
+        )
+        await client.put_raw(
+            "https://s3.amazonaws.com/presigned-url",
+            data=b"file-bytes",
+            content_type="application/pdf",
+        )
+        mock_http.put.assert_called_once_with(
+            "https://s3.amazonaws.com/presigned-url",
+            content=b"file-bytes",
+            headers={"Content-Type": "application/pdf"},
+        )
+
+    async def test_put_raw_raises_on_failure(self) -> None:
+        import httpx
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_http = AsyncMock(spec=httpx.AsyncClient)
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.is_success = False
+        mock_response.status_code = 403
+        mock_response.headers = {}
+        mock_response.json.side_effect = Exception("not json")
+        mock_http.put.return_value = mock_response
+
+        client = PCOClient(
+            base_url="https://api.example.com",
+            access_token="test-token",
+            http_client=mock_http,
+        )
+        with pytest.raises(PCOAPIError, match="403"):
+            await client.put_raw(
+                "https://s3.amazonaws.com/presigned-url",
+                data=b"file-bytes",
+                content_type="application/pdf",
+            )

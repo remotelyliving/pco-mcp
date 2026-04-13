@@ -90,6 +90,18 @@ class PCOClient:
         logger.debug("DELETE %s -> %s", url, response.status_code)
         self._check_response(response)
 
+    async def put_raw(self, url: str, data: bytes, content_type: str) -> None:
+        """PUT raw bytes to a URL (used for S3 presigned uploads).
+
+        Unlike other methods, this does NOT send auth headers — presigned
+        URLs carry their own authentication.
+        """
+        response = await self._client.put(
+            url, content=data, headers={"Content-Type": content_type}
+        )
+        logger.debug("PUT %s -> %s", url, response.status_code)
+        self._check_response(response)
+
     async def get_all(
         self, path: str, params: dict[str, Any] | None = None, max_pages: int = 50
     ) -> list[Any]:
