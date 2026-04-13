@@ -81,6 +81,8 @@ async def safe_tool_call(coro: Coroutine[Any, Any, T]) -> T | dict[str, str]:
         return await coro
     except PCOAPIError as e:
         logger.warning("PCO API error in tool call: %s", e)
+        if e.status_code == 422:
+            return {"error": f"Planning Center rejected the request: {e.detail}"}
         return {"error": map_pco_error(e.status_code, "https://pco-mcp.com")}
     except RuntimeError as e:
         if "No authenticated" in str(e):
