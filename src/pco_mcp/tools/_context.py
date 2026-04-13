@@ -17,6 +17,7 @@ import httpx
 from fastmcp.server.dependencies import get_access_token
 
 from pco_mcp.errors import map_pco_error
+from pco_mcp.pco.checkins import CheckInsAPI
 from pco_mcp.pco.client import PCOAPIError, PCOClient
 from pco_mcp.pco.people import PeopleAPI
 from pco_mcp.pco.services import ServicesAPI
@@ -70,6 +71,10 @@ def get_people_api() -> PeopleAPI:
 
 def get_services_api() -> ServicesAPI:
     return ServicesAPI(get_pco_client())
+
+
+def get_checkins_api() -> CheckInsAPI:
+    return CheckInsAPI(get_pco_client())
 
 
 T = TypeVar("T")
