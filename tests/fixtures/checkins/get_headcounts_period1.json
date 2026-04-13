@@ -1,0 +1,6 @@
+{
+    "data": [
+        {"type": "Headcount", "id": "401", "attributes": {"total": 150, "attending_count": 150}, "relationships": {"attendance_type": {"data": {"type": "AttendanceType", "id": "50", "attributes": {"name": "Main Sanctuary"}}}}},
+        {"type": "Headcount", "id": "402", "attributes": {"total": 45, "attending_count": 45}, "relationships": {"attendance_type": {"data": {"type": "AttendanceType", "id": "51", "attributes": {"name": "Kids"}}}}}
+    ]
+}

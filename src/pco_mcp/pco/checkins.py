@@ -36,6 +36,50 @@ class CheckInsAPI:
         )
         return [self._simplify_checkin(c) for c in all_checkins]
 
+    async def get_headcounts(
+        self,
+        event_id: str,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Get headcount data aggregated by event period. Capped at 100 periods."""
+        params: dict[str, Any] = {}
+        if start_date:
+            params["where[starts_at][gte]"] = start_date
+        if end_date:
+            params["where[starts_at][lte]"] = end_date
+        periods = await self._client.get_all(
+            f"/check-ins/v2/events/{event_id}/event_periods",
+            params=params,
+            max_pages=4,
+        )
+        results: list[dict[str, Any]] = []
+        for period in periods:
+            period_id = period["id"]
+            period_attrs = period.get("attributes", {})
+            hc_result = await self._client.get(
+                f"/check-ins/v2/event_periods/{period_id}/headcounts"
+            )
+            by_location: dict[str, int] = {}
+            total = 0
+            for hc in hc_result.get("data", []):
+                hc_attrs = hc.get("attributes", {})
+                count = hc_attrs.get("total", 0)
+                total += count
+                at_data = (
+                    hc.get("relationships", {})
+                    .get("attendance_type", {})
+                    .get("data", {})
+                )
+                loc_name = at_data.get("attributes", {}).get("name", "Unknown")
+                by_location[loc_name] = count
+            results.append({
+                "date": period_attrs.get("starts_at"),
+                "total": total,
+                "by_location": by_location,
+            })
+        return results
+
     def _simplify_event(self, raw: dict[str, Any]) -> dict[str, Any]:
         attrs = raw.get("attributes", {})
         return {

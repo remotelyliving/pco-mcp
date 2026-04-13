@@ -1,0 +1,7 @@
+{
+    "data": [
+        {"type": "EventPeriod", "id": "301", "attributes": {"starts_at": "2026-04-13T09:00:00Z", "ends_at": "2026-04-13T10:30:00Z"}},
+        {"type": "EventPeriod", "id": "302", "attributes": {"starts_at": "2026-04-06T09:00:00Z", "ends_at": "2026-04-06T10:30:00Z"}}
+    ],
+    "meta": {"total_count": 2, "count": 2}
+}

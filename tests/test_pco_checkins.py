@@ -75,3 +75,43 @@ class TestGetEventCheckins:
         await api.get_event_checkins("101")
         call_kwargs = mock_client.get_all.call_args.kwargs
         assert call_kwargs.get("max_pages", 50) <= 20
+
+
+class TestGetHeadcounts:
+    async def test_returns_headcounts_by_period(self, mock_client: AsyncMock) -> None:
+        mock_client.get_all.return_value = load_fixture("get_event_periods.json")["data"]
+        mock_client.get.side_effect = [
+            load_fixture("get_headcounts_period1.json"),
+            load_fixture("get_headcounts_period2.json"),
+        ]
+        api = CheckInsAPI(mock_client)
+        headcounts = await api.get_headcounts("101")
+        assert len(headcounts) == 2
+        assert headcounts[0]["total"] == 195
+        assert headcounts[0]["by_location"]["Main Sanctuary"] == 150
+        assert headcounts[0]["by_location"]["Kids"] == 45
+        assert headcounts[1]["total"] == 130
+        assert headcounts[1]["by_location"]["Main Sanctuary"] == 130
+
+    async def test_calls_event_periods_endpoint(self, mock_client: AsyncMock) -> None:
+        mock_client.get_all.return_value = []
+        api = CheckInsAPI(mock_client)
+        await api.get_headcounts("101")
+        call_path = mock_client.get_all.call_args.args[0]
+        assert "101" in call_path
+        assert "/event_periods" in call_path
+
+    async def test_passes_date_filters_to_periods(self, mock_client: AsyncMock) -> None:
+        mock_client.get_all.return_value = []
+        api = CheckInsAPI(mock_client)
+        await api.get_headcounts("101", start_date="2026-04-01", end_date="2026-04-30")
+        call_kwargs = mock_client.get_all.call_args.kwargs
+        params = call_kwargs.get("params", {})
+        assert params.get("where[starts_at][gte]") == "2026-04-01"
+        assert params.get("where[starts_at][lte]") == "2026-04-30"
+
+    async def test_empty_periods_returns_empty(self, mock_client: AsyncMock) -> None:
+        mock_client.get_all.return_value = []
+        api = CheckInsAPI(mock_client)
+        headcounts = await api.get_headcounts("101")
+        assert headcounts == []
