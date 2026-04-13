@@ -1,0 +1,1 @@
+{"data": [{"type": "EventResourceRequest", "id": "401", "attributes": {"name": "Main Sanctuary", "resource_type": "Room", "approval_status": "approved"}}, {"type": "EventResourceRequest", "id": "402", "attributes": {"name": "Projector", "resource_type": "Equipment", "approval_status": "approved"}}]}
