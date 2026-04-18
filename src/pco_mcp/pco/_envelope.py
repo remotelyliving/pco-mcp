@@ -61,3 +61,21 @@ def index_included(included: list[dict[str, Any]]) -> dict[tuple[str, str], dict
         if t and i:
             out[(t, i)] = rec
     return out
+
+
+def resolve_ref(
+    ref: dict[str, Any] | None,
+    included_index: dict[tuple[str, str], dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Look up a JSON:API relationship ref in the included index.
+
+    Returns the full included record or None if `ref` is missing, lacks
+    type/id, or the record isn't in the index.
+    """
+    if not ref:
+        return None
+    t = ref.get("type")
+    i = ref.get("id")
+    if not (t and i):
+        return None
+    return included_index.get((t, i))

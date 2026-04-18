@@ -110,9 +110,6 @@ class TestGetEvents:
             "attributes": {
                 "name": "Easter",
                 "description": long_desc,
-                "starts_at": "2026-04-20T09:00:00Z",
-                "ends_at": "2026-04-20T11:00:00Z",
-                "recurrence": None,
                 "visible_in_church_center": True,
             },
             "relationships": {},
@@ -129,8 +126,7 @@ class TestGetEvents:
         raw = {
             "type": "Event", "id": "201",
             "attributes": {
-                "name": "E", "description": "", "starts_at": None,
-                "ends_at": None, "recurrence": None, "visible_in_church_center": False,
+                "name": "E", "description": "", "visible_in_church_center": False,
             },
             "relationships": {
                 "owner": {"data": {"type": "Person", "id": "42"}}
@@ -140,6 +136,25 @@ class TestGetEvents:
         api = CalendarAPI(mock_client)
         result = await api.get_events()
         assert result["items"][0]["owner_id"] == "42"
+
+    async def test_list_path_does_not_leak_eventinstance_fields(
+        self, mock_client: AsyncMock,
+    ) -> None:
+        """starts_at/ends_at/recurrence live on EventInstance, not Event —
+        the list path must NOT include those keys (they're always None on
+        Event.attributes and would be misleading)."""
+        from pco_mcp.pco.client import PagedResult
+        raw_events = load_fixture("list_events.json")["data"]
+        raw_included = load_fixture("list_events.json")["included"]
+        mock_client.get_all.return_value = PagedResult(
+            items=raw_events, total_count=1, truncated=False, included=raw_included,
+        )
+        api = CalendarAPI(mock_client)
+        result = await api.get_events()
+        event = result["items"][0]
+        assert "starts_at" not in event
+        assert "ends_at" not in event
+        assert "recurrence" not in event
 
 
 class TestGetEventDetail:

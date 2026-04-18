@@ -117,3 +117,25 @@ class TestIndexIncluded:
         ]
         idx = index_included(included)
         assert idx[("Person", "1")]["attributes"]["name"] == "New"
+
+
+class TestResolveRef:
+    def test_returns_record_when_present(self) -> None:
+        from pco_mcp.pco._envelope import resolve_ref
+        rec = {"type": "Person", "id": "1", "attributes": {"name": "Alice"}}
+        idx = {("Person", "1"): rec}
+        assert resolve_ref({"type": "Person", "id": "1"}, idx) is rec
+
+    def test_returns_none_for_missing_ref(self) -> None:
+        from pco_mcp.pco._envelope import resolve_ref
+        assert resolve_ref(None, {}) is None
+
+    def test_returns_none_when_ref_missing_type_or_id(self) -> None:
+        from pco_mcp.pco._envelope import resolve_ref
+        idx = {("Person", "1"): {"attributes": {}}}
+        assert resolve_ref({"id": "1"}, idx) is None
+        assert resolve_ref({"type": "Person"}, idx) is None
+
+    def test_returns_none_when_record_not_in_index(self) -> None:
+        from pco_mcp.pco._envelope import resolve_ref
+        assert resolve_ref({"type": "Person", "id": "99"}, {}) is None

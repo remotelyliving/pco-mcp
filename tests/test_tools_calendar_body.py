@@ -53,9 +53,6 @@ class TestListCalendarEventsToolBody:
                     "attributes": {
                         "name": "Easter Service",
                         "description": "Easter.",
-                        "starts_at": "2026-04-20T09:00:00Z",
-                        "ends_at": "2026-04-20T11:00:00Z",
-                        "recurrence": None,
                         "visible_in_church_center": True,
                     },
                     "relationships": {},
@@ -68,6 +65,11 @@ class TestListCalendarEventsToolBody:
         fn = _get_tool_fn(mcp, "list_calendar_events")
         result = await fn()
         assert result["items"][0]["name"] == "Easter Service"
+        # starts_at/ends_at/recurrence live on EventInstance — not on the
+        # curated list shape.
+        assert "starts_at" not in result["items"][0]
+        assert "ends_at" not in result["items"][0]
+        assert "recurrence" not in result["items"][0]
         assert result["meta"]["total_count"] == 1
         assert result["meta"]["truncated"] is False
         assert result["meta"]["filters_applied"].get("filter") == "future"

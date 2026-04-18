@@ -7,9 +7,14 @@
             "sequence": 4,
             "item_type": "song",
             "length": 280,
-            "song_id": 1003,
             "description": null,
-            "service_position": "during"
+            "service_position": "during",
+            "key_name": null
+        },
+        "relationships": {
+            "song": {"data": {"type": "Song", "id": "1003"}},
+            "arrangement": {"data": null},
+            "key": {"data": null}
         }
     }
 }

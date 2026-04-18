@@ -8,9 +8,14 @@
                 "sequence": 1,
                 "item_type": "song",
                 "length": 240,
-                "song_id": 1001,
                 "description": null,
-                "service_position": "pre_service"
+                "service_position": "pre_service",
+                "key_name": "G"
+            },
+            "relationships": {
+                "song": {"data": {"type": "Song", "id": "1001"}},
+                "arrangement": {"data": {"type": "Arrangement", "id": "2001"}},
+                "key": {"data": {"type": "Key", "id": "3001"}}
             }
         },
         {
@@ -21,9 +26,14 @@
                 "sequence": 2,
                 "item_type": "regular",
                 "length": 180,
-                "song_id": null,
                 "description": "Opening welcome",
-                "service_position": "during"
+                "service_position": "during",
+                "key_name": null
+            },
+            "relationships": {
+                "song": {"data": null},
+                "arrangement": {"data": null},
+                "key": {"data": null}
             }
         },
         {
@@ -34,10 +44,37 @@
                 "sequence": 3,
                 "item_type": "song",
                 "length": 300,
-                "song_id": 1002,
                 "description": null,
-                "service_position": "during"
+                "service_position": "during",
+                "key_name": "A"
+            },
+            "relationships": {
+                "song": {"data": {"type": "Song", "id": "1002"}},
+                "arrangement": {"data": {"type": "Arrangement", "id": "2002"}},
+                "key": {"data": {"type": "Key", "id": "3002"}}
             }
+        }
+    ],
+    "included": [
+        {
+            "type": "Song",
+            "id": "1001",
+            "attributes": {"title": "Amazing Grace", "author": "John Newton"}
+        },
+        {
+            "type": "Arrangement",
+            "id": "2001",
+            "attributes": {"name": "Standard"}
+        },
+        {
+            "type": "Song",
+            "id": "1002",
+            "attributes": {"title": "How Great Is Our God", "author": "Chris Tomlin"}
+        },
+        {
+            "type": "Arrangement",
+            "id": "2002",
+            "attributes": {"name": "Acoustic"}
         }
     ],
     "meta": {"total_count": 3, "count": 3}

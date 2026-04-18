@@ -500,8 +500,10 @@ class TestListPlanItemsToolBody:
                         "item_type": "song",
                         "sequence": 1,
                         "length": 240,
-                        "song_id": "401",
                         "description": None,
+                    },
+                    "relationships": {
+                        "song": {"data": {"type": "Song", "id": "401"}}
                     },
                 }
             ],
@@ -698,9 +700,12 @@ class TestCreatePlanToolBody:
         }
         mcp = make_services_mcp()
         fn = _get_tool_fn(mcp, "create_plan")
-        result = await fn(service_type_id="201", title="New Service", sort_date="2026-05-01")
+        result = await fn(service_type_id="201", title="New Service")
         assert result["id"] == "999"
         assert result["title"] == "New Service"
+        # sort_date must NOT be in the POST payload — PCO rejects it with 422
+        attrs = mock_client.post.call_args.kwargs["data"]["data"]["attributes"]
+        assert "sort_date" not in attrs
 
 
 @pytest.mark.usefixtures("setup_context")

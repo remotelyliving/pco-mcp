@@ -135,7 +135,11 @@ def register_services_tools(mcp: FastMCP) -> None:
         """Get the ordered list of items (songs, elements) in a service plan.
 
         Returns an envelope ``{items, meta}``. Each item carries title, type,
-        sequence, length, and song_id (when applicable).
+        sequence, length, key_name, and — for song items — ``song_id`` +
+        ``song_title`` and ``arrangement_id`` + ``arrangement_name``. IDs
+        come from relationship refs (they're NOT on Item.attributes); titles
+        and names are sourced from the included Song/Arrangement records
+        (``include=song,arrangement`` is hard-coded server-side).
         """
         from pco_mcp.tools._context import get_services_api, safe_tool_call
 
@@ -218,16 +222,22 @@ def register_services_tools(mcp: FastMCP) -> None:
         return await safe_tool_call(api.get_needed_positions(service_type_id, plan_id))
 
     @mcp.tool(annotations=WRITE_ANNOTATIONS)
-    async def create_plan(service_type_id: str, title: str, sort_date: str) -> dict[str, Any]:
-        """Create a new service plan for a specific date.
+    async def create_plan(service_type_id: str, title: str) -> dict[str, Any]:
+        """Create a new service plan for a service type.
 
-        Provide the service type, a title (e.g., 'Sunday Morning'), and the date
-        (YYYY-MM-DD format).
+        Only ``title`` is accepted at creation. Plan dates are NOT directly
+        settable — PCO rejects ``sort_date`` with 422 at creation. Dates are
+        derived from plan_times.
+
+        AFTER creating the plan, call
+        ``create_plan_time(service_type_id, plan_id, starts_at, ends_at)``
+        to attach the service time(s); PCO auto-populates ``sort_date``
+        from the earliest plan_time.
         """
         from pco_mcp.tools._context import get_services_api, safe_tool_call
 
         api = get_services_api()
-        return await safe_tool_call(api.create_plan(service_type_id, title, sort_date))
+        return await safe_tool_call(api.create_plan(service_type_id, title))
 
     @mcp.tool(annotations=WRITE_ANNOTATIONS)
     async def create_plan_time(

@@ -67,7 +67,8 @@ class TestGetPlanDetails:
     async def test_team_members_include_params_sent(
         self, mock_client: AsyncMock,
     ) -> None:
-        """get_plan_details hits the client directly and passes include= for team_members."""
+        """get_plan_details hits the client directly and passes include= for
+        both items (song,arrangement) and team_members (person,team_position)."""
         from pco_mcp.pco.client import PagedResult
         mock_client.get.return_value = load_fixture("get_plan_details.json")
         mock_client.get_all.side_effect = [
@@ -82,10 +83,37 @@ class TestGetPlanDetails:
         assert "include" in team_params
         assert "person" in team_params["include"]
         assert "team_position" in team_params["include"]
-        # First call is items — no include params
+        # First call is items — now sends include=song,arrangement
         items_call = mock_client.get_all.call_args_list[0]
-        items_kwargs = items_call.kwargs or {}
-        assert "params" not in items_kwargs or items_kwargs.get("params") is None
+        items_params = items_call.kwargs.get("params", {})
+        assert "include" in items_params
+        assert "song" in items_params["include"]
+        assert "arrangement" in items_params["include"]
+
+    async def test_items_flattened_via_items_included_index(
+        self, mock_client: AsyncMock,
+    ) -> None:
+        """Items fetched via get_plan_details get song_id/arrangement_id from
+        relationships and song_title/arrangement_name from the items-specific
+        included array (separate from team_members' included)."""
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get.return_value = load_fixture("get_plan_details.json")
+        items_fixture = load_fixture("list_plan_items.json")
+        mock_client.get_all.side_effect = [
+            PagedResult(
+                items=items_fixture["data"],
+                total_count=3, truncated=False,
+                included=items_fixture["included"],
+            ),
+            PagedResult(items=[], total_count=0, truncated=False),  # team_members
+        ]
+        api = ServicesAPI(mock_client)
+        plan = await api.get_plan_details("201", "301")
+        item = plan["items"][0]
+        assert item["song_id"] == "1001"
+        assert item["song_title"] == "Amazing Grace"
+        assert item["arrangement_id"] == "2001"
+        assert item["arrangement_name"] == "Standard"
 
     async def test_team_members_flattened_via_included_index(
         self, mock_client: AsyncMock,

@@ -1,7 +1,12 @@
 import logging
 from typing import Any
 
-from pco_mcp.pco._envelope import make_envelope, merge_filters
+from pco_mcp.pco._envelope import (
+    index_included,
+    make_envelope,
+    merge_filters,
+    resolve_ref,
+)
 from pco_mcp.pco.client import PCOAPIError, PCOClient
 
 logger = logging.getLogger(__name__)
@@ -44,13 +49,24 @@ class PeopleAPI:
             overrides["where[search_name_or_email]"] = name
         params = merge_filters(defaults, overrides)
         result = await self._client.get_all("/people/v2/people", params=params)
-        simplified = [self._simplify_person(p) for p in result.items]
+        included_idx = index_included(result.included)
+        simplified = [self._simplify_person(p, included_idx) for p in result.items]
         return make_envelope(result, simplified, params)
 
     async def get_person(self, person_id: str) -> dict[str, Any]:
-        """Get full details for a person by ID (single-resource dict)."""
-        api_result = await self._client.get(f"/people/v2/people/{person_id}")
-        return self._simplify_person(api_result["data"])
+        """Get full details for a person by ID (single-resource dict).
+
+        Sends ``include=emails,phone_numbers`` so the returned person carries
+        populated contact arrays via the JSON:API ``included`` array. Without
+        the include, Person.attributes has no ``email_addresses`` /
+        ``phone_numbers`` keys — those live on related resources.
+        """
+        params: dict[str, Any] = {"include": "emails,phone_numbers"}
+        api_result = await self._client.get(
+            f"/people/v2/people/{person_id}", params=params,
+        )
+        included_idx = index_included(api_result.get("included", []))
+        return self._simplify_person(api_result["data"], included_idx)
 
     async def list_lists(self) -> dict[str, Any]:
         """Get all PCO Lists. Returns envelope ``{items, meta}``."""
@@ -65,7 +81,8 @@ class PeopleAPI:
         result = await self._client.get_all(
             f"/people/v2/lists/{list_id}/people", params=params,
         )
-        simplified = [self._simplify_person(p) for p in result.items]
+        included_idx = index_included(result.included)
+        simplified = [self._simplify_person(p, included_idx) for p in result.items]
         return make_envelope(result, simplified, params)
 
     async def create_person(
@@ -387,40 +404,35 @@ class PeopleAPI:
             "person_id": person_data.get("id"),
         }
 
-    def _simplify_person(self, raw: dict[str, Any]) -> dict[str, Any]:
-        """Curated person record (curated-but-complete).
+    def _simplify_person(
+        self,
+        raw: dict[str, Any],
+        included_index: dict[tuple[str, str], dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Curated person record (curated-but-complete when included_index is passed).
 
-        Kept: id, first_name, last_name, name, emails[] (all addresses),
-        phone_numbers[] (all numbers), membership, status, birthdate, gender,
-        created_at, avatar, site_administrator.
-        Dropped: JSON:API links, relationships, meta.
+        Kept: id, first_name, last_name, name, emails[], phone_numbers[],
+        membership, status, birthdate, gender, created_at, avatar,
+        site_administrator.
+
+        emails and phone_numbers are populated from the JSON:API
+        ``included`` array via ``included_index``. When called without an
+        index (single-resource write paths like create_person/update_person),
+        the arrays stay empty — callers that want contact data must use
+        list tools (which send ``include=emails,phone_numbers``) or
+        ``get_person`` (which also sends the include).
         """
         attrs = raw.get("attributes", {})
-        raw_emails = attrs.get("email_addresses") or []
-        raw_phones = attrs.get("phone_numbers") or []
-        return {
+        rels = raw.get("relationships", {})
+        simplified: dict[str, Any] = {
             "id": raw["id"],
             "first_name": attrs.get("first_name", ""),
             "last_name": attrs.get("last_name", ""),
             "name": attrs.get("name") or (
                 f"{attrs.get('first_name', '')} {attrs.get('last_name', '')}".strip()
             ),
-            "emails": [
-                {
-                    "address": e.get("address", ""),
-                    "location": e.get("location"),
-                    "primary": e.get("primary", False),
-                }
-                for e in raw_emails
-            ],
-            "phone_numbers": [
-                {
-                    "number": p.get("number", ""),
-                    "location": p.get("location"),
-                    "primary": p.get("primary", False),
-                }
-                for p in raw_phones
-            ],
+            "emails": [],
+            "phone_numbers": [],
             "membership": attrs.get("membership"),
             "status": attrs.get("status"),
             "birthdate": attrs.get("birthdate"),
@@ -429,6 +441,29 @@ class PeopleAPI:
             "avatar": attrs.get("avatar"),
             "site_administrator": attrs.get("site_administrator"),
         }
+        if included_index is None:
+            return simplified
+        for ref in rels.get("emails", {}).get("data") or []:
+            rec = resolve_ref(ref, included_index)
+            if rec is None:
+                continue
+            rattrs = rec.get("attributes", {})
+            simplified["emails"].append({
+                "address": rattrs.get("address", ""),
+                "location": rattrs.get("location"),
+                "primary": rattrs.get("primary", False),
+            })
+        for ref in rels.get("phone_numbers", {}).get("data") or []:
+            rec = resolve_ref(ref, included_index)
+            if rec is None:
+                continue
+            rattrs = rec.get("attributes", {})
+            simplified["phone_numbers"].append({
+                "number": rattrs.get("number", ""),
+                "location": rattrs.get("location"),
+                "primary": rattrs.get("primary", False),
+            })
+        return simplified
 
     def _simplify_list(self, raw: dict[str, Any]) -> dict[str, Any]:
         """Flatten a JSON:API list record."""

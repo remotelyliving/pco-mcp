@@ -23,9 +23,11 @@ def mock_client() -> PCOClient:
 class TestSearchPeople:
     async def test_search_by_name(self, mock_client: AsyncMock) -> None:
         from pco_mcp.pco.client import PagedResult
+        fixture = load_fixture("search_people.json")
         mock_client.get_all.return_value = PagedResult(
-            items=load_fixture("search_people.json")["data"],
+            items=fixture["data"],
             total_count=2, truncated=False,
+            included=fixture["included"],
         )
         api = PeopleAPI(mock_client)
         result = await api.search_people(name="Alice")
@@ -37,9 +39,11 @@ class TestSearchPeople:
 
     async def test_returns_envelope(self, mock_client: AsyncMock) -> None:
         from pco_mcp.pco.client import PagedResult
+        fixture = load_fixture("search_people.json")
         mock_client.get_all.return_value = PagedResult(
-            items=load_fixture("search_people.json")["data"],
+            items=fixture["data"],
             total_count=2, truncated=False,
+            included=fixture["included"],
         )
         api = PeopleAPI(mock_client)
         result = await api.search_people(name="Alice")
@@ -56,9 +60,11 @@ class TestSearchPeople:
 
     async def test_search_returns_simplified_records(self, mock_client: AsyncMock) -> None:
         from pco_mcp.pco.client import PagedResult
+        fixture = load_fixture("search_people.json")
         mock_client.get_all.return_value = PagedResult(
-            items=load_fixture("search_people.json")["data"],
+            items=fixture["data"],
             total_count=2, truncated=False,
+            included=fixture["included"],
         )
         api = PeopleAPI(mock_client)
         result = await api.search_people(name="Alice")
@@ -68,6 +74,29 @@ class TestSearchPeople:
         assert "last_name" in record
         assert "emails" in record
 
+    async def test_emails_populated_from_included(self, mock_client: AsyncMock) -> None:
+        """After search, returned persons must have populated emails and
+        phone_numbers arrays sourced from the JSON:API included records."""
+        from pco_mcp.pco.client import PagedResult
+        fixture = load_fixture("search_people.json")
+        mock_client.get_all.return_value = PagedResult(
+            items=fixture["data"],
+            total_count=2, truncated=False,
+            included=fixture["included"],
+        )
+        api = PeopleAPI(mock_client)
+        result = await api.search_people(name="Alice")
+        alice = result["items"][0]
+        assert alice["emails"] == [
+            {"address": "alice@example.com", "location": "Home", "primary": True}
+        ]
+        assert alice["phone_numbers"] == [
+            {"number": "555-0101", "location": "Mobile", "primary": True}
+        ]
+        bob = result["items"][1]
+        assert bob["emails"][0]["address"] == "bob@example.com"
+        assert bob["phone_numbers"] == []
+
 
 class TestSimplifyPersonCompleteness:
     async def test_returns_all_emails_and_phones(self, mock_client: AsyncMock) -> None:
@@ -76,20 +105,27 @@ class TestSimplifyPersonCompleteness:
         raw = {
             "type": "Person",
             "id": "1",
-            "attributes": {
-                "first_name": "Alice",
-                "last_name": "Smith",
-                "email_addresses": [
-                    {"address": "a@example.com", "location": "Home", "primary": True},
-                    {"address": "a@work.com", "location": "Work", "primary": False},
-                ],
-                "phone_numbers": [
-                    {"number": "555-0001", "location": "Mobile", "primary": True},
-                    {"number": "555-0002", "location": "Home", "primary": False},
-                ],
+            "attributes": {"first_name": "Alice", "last_name": "Smith"},
+            "relationships": {
+                "emails": {"data": [
+                    {"type": "Email", "id": "10"},
+                    {"type": "Email", "id": "11"},
+                ]},
+                "phone_numbers": {"data": [
+                    {"type": "PhoneNumber", "id": "20"},
+                    {"type": "PhoneNumber", "id": "21"},
+                ]},
             },
         }
-        mock_client.get_all.return_value = PagedResult(items=[raw], total_count=1, truncated=False)
+        included = [
+            {"type": "Email", "id": "10", "attributes": {"address": "a@example.com", "location": "Home", "primary": True}},
+            {"type": "Email", "id": "11", "attributes": {"address": "a@work.com", "location": "Work", "primary": False}},
+            {"type": "PhoneNumber", "id": "20", "attributes": {"number": "555-0001", "location": "Mobile", "primary": True}},
+            {"type": "PhoneNumber", "id": "21", "attributes": {"number": "555-0002", "location": "Home", "primary": False}},
+        ]
+        mock_client.get_all.return_value = PagedResult(
+            items=[raw], total_count=1, truncated=False, included=included,
+        )
         api = PeopleAPI(mock_client)
         result = await api.search_people(name="Alice")
         person = result["items"][0]
@@ -105,9 +141,37 @@ class TestGetPerson:
         mock_client.get.return_value = load_fixture("get_person.json")
         api = PeopleAPI(mock_client)
         person = await api.get_person("1001")
-        mock_client.get.assert_called_once_with("/people/v2/people/1001")
+        mock_client.get.assert_called_once()
+        call_path = mock_client.get.call_args.args[0]
+        assert call_path == "/people/v2/people/1001"
         assert person["first_name"] == "Alice"
         assert person["id"] == "1001"
+
+    async def test_sends_include_emails_and_phone_numbers(
+        self, mock_client: AsyncMock,
+    ) -> None:
+        """get_person must send include=emails,phone_numbers so the curated
+        record actually has populated contact arrays."""
+        mock_client.get.return_value = load_fixture("get_person.json")
+        api = PeopleAPI(mock_client)
+        await api.get_person("1001")
+        call_kwargs = mock_client.get.call_args.kwargs
+        params = call_kwargs.get("params", {})
+        assert "emails" in params.get("include", "")
+        assert "phone_numbers" in params.get("include", "")
+
+    async def test_populates_emails_and_phones_from_included(
+        self, mock_client: AsyncMock,
+    ) -> None:
+        mock_client.get.return_value = load_fixture("get_person.json")
+        api = PeopleAPI(mock_client)
+        person = await api.get_person("1001")
+        assert person["emails"] == [
+            {"address": "alice@example.com", "location": "Home", "primary": True}
+        ]
+        assert person["phone_numbers"] == [
+            {"number": "555-0101", "location": "Mobile", "primary": True}
+        ]
 
 
 class TestListLists:

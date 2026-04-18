@@ -6,10 +6,12 @@
             "attributes": {
                 "first_name": "Alice",
                 "last_name": "Smith",
-                "email_addresses": [{"address": "alice@example.com"}],
-                "phone_numbers": [{"number": "555-0101"}],
                 "membership": "Member",
                 "status": "active"
+            },
+            "relationships": {
+                "emails": {"data": [{"type": "Email", "id": "2001"}]},
+                "phone_numbers": {"data": [{"type": "PhoneNumber", "id": "3001"}]}
             }
         },
         {
@@ -18,11 +20,25 @@
             "attributes": {
                 "first_name": "Carol",
                 "last_name": "Davis",
-                "email_addresses": [],
-                "phone_numbers": [],
                 "membership": "Volunteer",
                 "status": "active"
+            },
+            "relationships": {
+                "emails": {"data": []},
+                "phone_numbers": {"data": []}
             }
+        }
+    ],
+    "included": [
+        {
+            "type": "Email",
+            "id": "2001",
+            "attributes": {"address": "alice@example.com", "location": "Home", "primary": true}
+        },
+        {
+            "type": "PhoneNumber",
+            "id": "3001",
+            "attributes": {"number": "555-0101", "location": "Mobile", "primary": true}
         }
     ],
     "meta": {"total_count": 2, "count": 2}

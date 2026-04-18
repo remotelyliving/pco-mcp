@@ -23,9 +23,11 @@ def mock_client() -> PCOClient:
 class TestGetListMembers:
     async def test_returns_envelope(self, mock_client: AsyncMock) -> None:
         from pco_mcp.pco.client import PagedResult
+        fixture = load_fixture("get_list_members.json")
         mock_client.get_all.return_value = PagedResult(
-            items=load_fixture("get_list_members.json")["data"],
+            items=fixture["data"],
             total_count=2, truncated=False,
+            included=fixture["included"],
         )
         api = PeopleAPI(mock_client)
         result = await api.get_list_members("42")
@@ -38,9 +40,11 @@ class TestGetListMembers:
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
         from pco_mcp.pco.client import PagedResult
+        fixture = load_fixture("get_list_members.json")
         mock_client.get_all.return_value = PagedResult(
-            items=load_fixture("get_list_members.json")["data"],
+            items=fixture["data"],
             total_count=2, truncated=False,
+            included=fixture["included"],
         )
         api = PeopleAPI(mock_client)
         await api.get_list_members("42")
@@ -49,9 +53,11 @@ class TestGetListMembers:
 
     async def test_returns_simplified_records(self, mock_client: AsyncMock) -> None:
         from pco_mcp.pco.client import PagedResult
+        fixture = load_fixture("get_list_members.json")
         mock_client.get_all.return_value = PagedResult(
-            items=load_fixture("get_list_members.json")["data"],
+            items=fixture["data"],
             total_count=2, truncated=False,
+            included=fixture["included"],
         )
         api = PeopleAPI(mock_client)
         result = await api.get_list_members("42")
@@ -60,6 +66,29 @@ class TestGetListMembers:
         assert "first_name" in record
         assert "last_name" in record
         assert "emails" in record
+
+    async def test_emails_populated_from_included(self, mock_client: AsyncMock) -> None:
+        """get_list_members sends include=emails,phone_numbers and returned
+        persons must have populated arrays from the included records."""
+        from pco_mcp.pco.client import PagedResult
+        fixture = load_fixture("get_list_members.json")
+        mock_client.get_all.return_value = PagedResult(
+            items=fixture["data"],
+            total_count=2, truncated=False,
+            included=fixture["included"],
+        )
+        api = PeopleAPI(mock_client)
+        result = await api.get_list_members("42")
+        alice = result["items"][0]
+        assert alice["emails"] == [
+            {"address": "alice@example.com", "location": "Home", "primary": True}
+        ]
+        assert alice["phone_numbers"] == [
+            {"number": "555-0101", "location": "Mobile", "primary": True}
+        ]
+        carol = result["items"][1]
+        assert carol["emails"] == []
+        assert carol["phone_numbers"] == []
 
 
 class TestCreatePerson:

@@ -98,9 +98,11 @@ class TestListSongs:
 class TestListPlanItems:
     async def test_returns_envelope(self, mock_client: AsyncMock) -> None:
         from pco_mcp.pco.client import PagedResult
+        fixture = load_fixture("list_plan_items.json")
         mock_client.get_all.return_value = PagedResult(
-            items=load_fixture("list_plan_items.json")["data"],
+            items=fixture["data"],
             total_count=3, truncated=False,
+            included=fixture["included"],
         )
         api = ServicesAPI(mock_client)
         result = await api.list_plan_items("201", "301")
@@ -113,9 +115,11 @@ class TestListPlanItems:
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
         from pco_mcp.pco.client import PagedResult
+        fixture = load_fixture("list_plan_items.json")
         mock_client.get_all.return_value = PagedResult(
-            items=load_fixture("list_plan_items.json")["data"],
+            items=fixture["data"],
             total_count=3, truncated=False,
+            included=fixture["included"],
         )
         api = ServicesAPI(mock_client)
         await api.list_plan_items("201", "301")
@@ -124,11 +128,27 @@ class TestListPlanItems:
         assert "301" in call_path
         assert "items" in call_path
 
+    async def test_passes_include_song_and_arrangement(
+        self, mock_client: AsyncMock,
+    ) -> None:
+        """list_plan_items must send include=song,arrangement so IDs and names
+        are available (song_id etc. are NOT on Item.attributes)."""
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(items=[], total_count=0, truncated=False)
+        api = ServicesAPI(mock_client)
+        await api.list_plan_items("201", "301")
+        call_params = mock_client.get_all.call_args.kwargs["params"]
+        assert "include" in call_params
+        assert "song" in call_params["include"]
+        assert "arrangement" in call_params["include"]
+
     async def test_item_has_expected_fields(self, mock_client: AsyncMock) -> None:
         from pco_mcp.pco.client import PagedResult
+        fixture = load_fixture("list_plan_items.json")
         mock_client.get_all.return_value = PagedResult(
-            items=load_fixture("list_plan_items.json")["data"],
+            items=fixture["data"],
             total_count=3, truncated=False,
+            included=fixture["included"],
         )
         api = ServicesAPI(mock_client)
         result = await api.list_plan_items("201", "301")
@@ -138,9 +158,11 @@ class TestListPlanItems:
         assert "sequence" in item
         assert "song_id" in item
 
-    async def test_includes_arrangement_id_and_key_id(self, mock_client: AsyncMock) -> None:
-        """arrangement_id and key_id are foreign keys the write API accepts —
-        they must round-trip through the curated schema."""
+    async def test_includes_song_arrangement_key_ids_from_relationships(
+        self, mock_client: AsyncMock,
+    ) -> None:
+        """song_id/arrangement_id/key_id are read from relationships refs —
+        they are NOT in Item.attributes (live-confirmed)."""
         from pco_mcp.pco.client import PagedResult
         raw = {
             "type": "Item",
@@ -150,34 +172,59 @@ class TestListPlanItems:
                 "sequence": 1,
                 "item_type": "song",
                 "length": 240,
-                "song_id": 101,
-                "arrangement_id": 202,
-                "key_id": 303,
                 "description": None,
                 "service_position": "during",
+                "key_name": "G",
+            },
+            "relationships": {
+                "song": {"data": {"type": "Song", "id": "101"}},
+                "arrangement": {"data": {"type": "Arrangement", "id": "202"}},
+                "key": {"data": {"type": "Key", "id": "303"}},
             },
         }
         mock_client.get_all.return_value = PagedResult(items=[raw], total_count=1, truncated=False)
         api = ServicesAPI(mock_client)
         result = await api.list_plan_items("1", "2")
         item = result["items"][0]
-        assert item["song_id"] == 101
-        assert item["arrangement_id"] == 202
-        assert item["key_id"] == 303
+        assert item["song_id"] == "101"
+        assert item["arrangement_id"] == "202"
+        assert item["key_id"] == "303"
+        assert item["key_name"] == "G"
+
+    async def test_flattens_song_title_and_arrangement_name_from_included(
+        self, mock_client: AsyncMock,
+    ) -> None:
+        """With include=song,arrangement, song_title and arrangement_name
+        are flattened from the included records."""
+        from pco_mcp.pco.client import PagedResult
+        fixture = load_fixture("list_plan_items.json")
+        mock_client.get_all.return_value = PagedResult(
+            items=fixture["data"],
+            total_count=3, truncated=False,
+            included=fixture["included"],
+        )
+        api = ServicesAPI(mock_client)
+        result = await api.list_plan_items("201", "301")
+        item = result["items"][0]
+        assert item["song_id"] == "1001"
+        assert item["arrangement_id"] == "2001"
+        assert item["key_id"] == "3001"
+        assert item["song_title"] == "Amazing Grace"
+        assert item["arrangement_name"] == "Standard"
 
 
 class TestCreatePlan:
     async def test_returns_simplified_plan(self, mock_client: AsyncMock) -> None:
         mock_client.post.return_value = load_fixture("create_plan.json")
         api = ServicesAPI(mock_client)
-        plan = await api.create_plan("201", "Sunday Morning", "2026-04-13")
+        plan = await api.create_plan("201", "Sunday Morning")
         assert plan["id"] == "401"
         assert plan["title"] == "Sunday Morning"
 
     async def test_posts_to_correct_endpoint(self, mock_client: AsyncMock) -> None:
         mock_client.post.return_value = load_fixture("create_plan.json")
         api = ServicesAPI(mock_client)
-        await api.create_plan("201", "Sunday Morning", "2026-04-13")
+        await api.create_plan("201", "Sunday Morning")
         call_path = mock_client.post.call_args.args[0]
         assert "201" in call_path
         assert "plans" in call_path
@@ -185,12 +232,21 @@ class TestCreatePlan:
     async def test_sends_correct_payload(self, mock_client: AsyncMock) -> None:
         mock_client.post.return_value = load_fixture("create_plan.json")
         api = ServicesAPI(mock_client)
-        await api.create_plan("201", "Sunday Morning", "2026-04-13")
+        await api.create_plan("201", "Sunday Morning")
         data = mock_client.post.call_args.kwargs["data"]
         assert data["data"]["type"] == "Plan"
         attrs = data["data"]["attributes"]
         assert attrs["title"] == "Sunday Morning"
-        assert attrs["sort_date"] == "2026-04-13"
+
+    async def test_does_not_send_sort_date(self, mock_client: AsyncMock) -> None:
+        """PCO rejects ``sort_date`` at creation with 422 — it must NOT be
+        in the request attributes. Dates are derived from plan_times."""
+        mock_client.post.return_value = load_fixture("create_plan.json")
+        api = ServicesAPI(mock_client)
+        await api.create_plan("201", "Sunday Morning")
+        data = mock_client.post.call_args.kwargs["data"]
+        attrs = data["data"]["attributes"]
+        assert "sort_date" not in attrs
 
 
 class TestCreatePlanTime:
@@ -223,7 +279,8 @@ class TestAddItemToPlan:
         item = await api.add_item_to_plan("201", "301", title="Holy Spirit", song_id="1003")
         assert item["id"] == "504"
         assert item["title"] == "Holy Spirit"
-        assert item["song_id"] == 1003
+        # song_id from relationships.song.data.id (string in JSON:API)
+        assert item["song_id"] == "1003"
 
     async def test_posts_to_correct_endpoint(self, mock_client: AsyncMock) -> None:
         mock_client.post.return_value = load_fixture("add_item_to_plan.json")

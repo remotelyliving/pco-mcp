@@ -1,7 +1,12 @@
 import logging
 from typing import Any
 
-from pco_mcp.pco._envelope import index_included, make_envelope, merge_filters
+from pco_mcp.pco._envelope import (
+    index_included,
+    make_envelope,
+    merge_filters,
+    resolve_ref,
+)
 from pco_mcp.pco.client import PCOClient
 
 logger = logging.getLogger(__name__)
@@ -69,7 +74,10 @@ class ServicesAPI:
         base = f"/services/v2/service_types/{service_type_id}/plans/{plan_id}"
         plan_result = await self._client.get(base)
         plan = self._simplify_plan(plan_result["data"])
-        items_result = await self._client.get_all(f"{base}/items")
+        items_result = await self._client.get_all(
+            f"{base}/items",
+            params={"include": "song,arrangement"},
+        )
         team_result = await self._client.get_all(
             f"{base}/team_members",
             params={"include": "person,team_position"},
@@ -80,10 +88,11 @@ class ServicesAPI:
                     "get_plan_details %s for plan_id=%s truncated at max_pages",
                     name, plan_id,
                 )
-        included_idx = index_included(team_result.included)
-        plan["items"] = [self._simplify_item(i) for i in items_result.items]
+        items_idx = index_included(items_result.included)
+        team_idx = index_included(team_result.included)
+        plan["items"] = [self._simplify_item(i, items_idx) for i in items_result.items]
         plan["team_members"] = [
-            self._simplify_team_member(tm, included_idx) for tm in team_result.items
+            self._simplify_team_member(tm, team_idx) for tm in team_result.items
         ]
         return plan
 
@@ -143,20 +152,27 @@ class ServicesAPI:
         return self._simplify_team_member(result["data"])
 
     async def create_plan(
-        self, service_type_id: str, title: str, sort_date: str
+        self, service_type_id: str, title: str,
     ) -> dict[str, Any]:
-        """Create a new plan for a service type."""
+        """Create a new plan for a service type.
+
+        IMPORTANT: PCO does not accept ``sort_date`` at creation — it rejects
+        the POST with 422 ``sort_date cannot be assigned``. Plan dates are
+        derived from ``plan_times``. After creating, call
+        ``create_plan_time(service_type_id, plan_id, starts_at, ends_at)``
+        to attach the service time(s); PCO auto-populates ``sort_date``
+        from the earliest plan_time.
+        """
         payload: dict[str, Any] = {
             "data": {
                 "type": "Plan",
                 "attributes": {
                     "title": title,
-                    "sort_date": sort_date,
                 },
             }
         }
         result = await self._client.post(
-            f"/services/v2/service_types/{service_type_id}/plans", data=payload
+            f"/services/v2/service_types/{service_type_id}/plans", data=payload,
         )
         return self._simplify_plan(result["data"])
 
@@ -192,13 +208,20 @@ class ServicesAPI:
     async def list_plan_items(
         self, service_type_id: str, plan_id: str,
     ) -> dict[str, Any]:
-        """List items (songs/elements) on a plan. Returns envelope ``{items, meta}``."""
-        params: dict[str, Any] = {}
+        """List items (songs/elements) on a plan. Returns envelope ``{items, meta}``.
+
+        Hard-codes ``include=song,arrangement`` so each item's curated record
+        carries ``song_id``/``arrangement_id`` (from relationships refs —
+        they're NOT on Item.attributes) plus flattened ``song_title`` /
+        ``arrangement_name``.
+        """
+        params: dict[str, Any] = {"include": "song,arrangement"}
         result = await self._client.get_all(
             f"/services/v2/service_types/{service_type_id}/plans/{plan_id}/items",
             params=params,
         )
-        simplified = [self._simplify_item(i) for i in result.items]
+        included_idx = index_included(result.included)
+        simplified = [self._simplify_item(i, included_idx) for i in result.items]
         return make_envelope(result, simplified, params)
 
     async def add_item_to_plan(
@@ -730,46 +753,66 @@ class ServicesAPI:
         if person_ref:
             simplified["person_id"] = person_ref.get("id")
             if included_index:
-                person_type = person_ref.get("type")
-                person_id = person_ref.get("id")
-                if person_type and person_id:
-                    person = included_index.get((person_type, person_id))
-                    if person:
-                        pattrs = person.get("attributes", {})
-                        simplified["person_name"] = (
-                            f"{pattrs.get('first_name', '')} {pattrs.get('last_name', '')}".strip()
-                        )
+                person = resolve_ref(person_ref, included_index)
+                if person:
+                    pattrs = person.get("attributes", {})
+                    simplified["person_name"] = (
+                        f"{pattrs.get('first_name', '')} {pattrs.get('last_name', '')}".strip()
+                    )
         position_ref = rels.get("team_position", {}).get("data")
         if position_ref:
             simplified["team_position_id"] = position_ref.get("id")
             if included_index:
-                position_type = position_ref.get("type")
-                position_id = position_ref.get("id")
-                if position_type and position_id:
-                    position = included_index.get((position_type, position_id))
-                    if position:
-                        simplified["team_position_name"] = position.get("attributes", {}).get("name")
+                position = resolve_ref(position_ref, included_index)
+                if position:
+                    simplified["team_position_name"] = position.get("attributes", {}).get("name")
         return simplified
 
-    def _simplify_item(self, raw: dict[str, Any]) -> dict[str, Any]:
-        """Curated plan item. Kept: id, title, sequence, item_type, length,
-        song_id, arrangement_id, key_id, description, service_position.
-        Dropped: JSON:API links, relationships (foreign keys preserved in
-        attribute form).
+    def _simplify_item(
+        self,
+        raw: dict[str, Any],
+        included_index: dict[tuple[str, str], dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Curated plan item.
+
+        Kept: id, title, sequence, item_type, length, description,
+        service_position, key_name (from attrs). song_id, arrangement_id,
+        and key_id are read from ``relationships.*.data.id`` — PCO's Item
+        resource does NOT expose these as attributes. When
+        ``included_index`` is passed (list path with
+        ``include=song,arrangement``), ``song_title`` and
+        ``arrangement_name`` are also flattened from the included records.
         """
         attrs = raw.get("attributes", {})
-        return {
+        rels = raw.get("relationships", {})
+        simplified: dict[str, Any] = {
             "id": raw["id"],
             "title": attrs.get("title", ""),
             "sequence": attrs.get("sequence"),
             "item_type": attrs.get("item_type"),
             "length": attrs.get("length"),
-            "song_id": attrs.get("song_id"),
-            "arrangement_id": attrs.get("arrangement_id"),
-            "key_id": attrs.get("key_id"),
             "description": attrs.get("description"),
             "service_position": attrs.get("service_position"),
+            "key_name": attrs.get("key_name"),
         }
+        song_ref = rels.get("song", {}).get("data")
+        if song_ref:
+            simplified["song_id"] = song_ref.get("id")
+            if included_index:
+                song = resolve_ref(song_ref, included_index)
+                if song:
+                    simplified["song_title"] = song.get("attributes", {}).get("title")
+        arrangement_ref = rels.get("arrangement", {}).get("data")
+        if arrangement_ref:
+            simplified["arrangement_id"] = arrangement_ref.get("id")
+            if included_index:
+                arrangement = resolve_ref(arrangement_ref, included_index)
+                if arrangement:
+                    simplified["arrangement_name"] = arrangement.get("attributes", {}).get("name")
+        key_ref = rels.get("key", {}).get("data")
+        if key_ref:
+            simplified["key_id"] = key_ref.get("id")
+        return simplified
 
     def _simplify_plan_time(self, raw: dict[str, Any]) -> dict[str, Any]:
         attrs = raw.get("attributes", {})

@@ -1,6 +1,11 @@
 from typing import Any
 
-from pco_mcp.pco._envelope import index_included, make_envelope, merge_filters
+from pco_mcp.pco._envelope import (
+    index_included,
+    make_envelope,
+    merge_filters,
+    resolve_ref,
+)
 from pco_mcp.pco.client import PCOClient
 
 
@@ -60,19 +65,21 @@ class CalendarAPI:
     ) -> dict[str, Any]:
         """Curated event record — strips JSON:API scaffolding, flattens include=.
 
-        Kept: id, name, description (full text), starts_at, ends_at,
-        recurrence, visible_in_church_center, owner_id, owner_name (from
-        include=owner), instances (from include=event_instances, simplified).
-        Dropped: links.*, raw relationships (replaced by flattened fields).
+        Kept: id, name, description (full text), visible_in_church_center,
+        owner_id (always when ref present), owner_name (when included_index
+        has the owner record), instances (only on the detail path where
+        ``included_index`` contains pre-fetched event_instance records).
+
+        NOT kept: ``starts_at`` / ``ends_at`` / ``recurrence`` — those live
+        on EventInstance, NOT Event. To get occurrence times, callers must
+        use ``get_event_details(event_id)`` which fetches the event's
+        instances via a separate endpoint.
         """
         attrs = raw.get("attributes", {})
         simplified: dict[str, Any] = {
             "id": raw["id"],
             "name": attrs.get("name", ""),
             "description": attrs.get("description") or "",
-            "starts_at": attrs.get("starts_at"),
-            "ends_at": attrs.get("ends_at"),
-            "recurrence": attrs.get("recurrence"),
             "visible_in_church_center": attrs.get("visible_in_church_center", False),
         }
         rels = raw.get("relationships", {})
@@ -82,23 +89,20 @@ class CalendarAPI:
             if owner_id:
                 simplified["owner_id"] = owner_id
             if included_index:
-                owner_type = owner_ref.get("type")
-                if owner_type and owner_id:
-                    owner = included_index.get((owner_type, owner_id))
-                    if owner:
-                        oattrs = owner.get("attributes", {})
-                        simplified["owner_name"] = (
-                            f"{oattrs.get('first_name', '')} {oattrs.get('last_name', '')}".strip()
-                        )
+                owner = resolve_ref(owner_ref, included_index)
+                if owner:
+                    oattrs = owner.get("attributes", {})
+                    simplified["owner_name"] = (
+                        f"{oattrs.get('first_name', '')} {oattrs.get('last_name', '')}".strip()
+                    )
+        # instances flattening kept only for detail path where the caller
+        # explicitly seeds included_index with event_instance records; the
+        # list path (get_events) never has these in included.
         instance_refs = rels.get("event_instances", {}).get("data") or []
         if instance_refs and included_index:
             instances = []
             for ref in instance_refs:
-                ref_type = ref.get("type")
-                ref_id = ref.get("id")
-                if not (ref_type and ref_id):
-                    continue
-                inst = included_index.get((ref_type, ref_id))
+                inst = resolve_ref(ref, included_index)
                 if inst:
                     instances.append(self._simplify_instance(inst))
             if instances:

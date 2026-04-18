@@ -5,13 +5,27 @@
         "attributes": {
             "first_name": "Alice",
             "last_name": "Smith",
-            "email_addresses": [{"address": "alice@example.com"}],
-            "phone_numbers": [{"number": "555-0101"}],
             "membership": "Member",
             "status": "active",
             "birthdate": "1990-05-15",
             "gender": "Female",
             "created_at": "2020-01-01T00:00:00Z"
+        },
+        "relationships": {
+            "emails": {"data": [{"type": "Email", "id": "2001"}]},
+            "phone_numbers": {"data": [{"type": "PhoneNumber", "id": "3001"}]}
         }
-    }
+    },
+    "included": [
+        {
+            "type": "Email",
+            "id": "2001",
+            "attributes": {"address": "alice@example.com", "location": "Home", "primary": true}
+        },
+        {
+            "type": "PhoneNumber",
+            "id": "3001",
+            "attributes": {"number": "555-0101", "location": "Mobile", "primary": true}
+        }
+    ]
 }

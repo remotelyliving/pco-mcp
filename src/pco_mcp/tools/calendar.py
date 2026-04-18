@@ -15,11 +15,16 @@ def register_calendar_tools(mcp: FastMCP) -> None:
     ) -> dict[str, Any]:
         """List calendar events. Returns `{items, meta: {total_count, truncated, filters_applied}}`.
 
+        Returns metadata about each event (name, description, owner) but NOT
+        occurrence times. PCO's Event resource doesn't carry start/end times —
+        those live on EventInstance. To see when an event actually occurs,
+        call `get_event_details(event_id)` which fetches the event's instances.
+
         Defaults to future events. Pass `include_past=True` to include past
         events. Pass `featured_only=True` to restrict to featured events.
 
-        NOTE: PCO does not support filtering this endpoint by start/end date —
-        event date/time attributes live on EventInstance, not Event. To find
+        NOTE: PCO also does not support filtering this endpoint by start/end
+        date directly (same reason — times live on EventInstance). To find
         events that occur on a specific date, list all events and call
         `get_event_details(event_id)` to inspect their instances.
 
