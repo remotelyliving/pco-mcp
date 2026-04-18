@@ -65,10 +65,10 @@ class TestGetEvents:
 
 class TestGetEventDetail:
     async def test_returns_full_detail(self, mock_client: AsyncMock) -> None:
-        mock_client.get.side_effect = [
-            load_fixture("get_event.json"),
-            load_fixture("get_event_instances.json"),
-            load_fixture("get_event_resources.json"),
+        mock_client.get.return_value = load_fixture("get_event.json")
+        mock_client.get_all.side_effect = [
+            load_fixture("get_event_instances.json")["data"],
+            load_fixture("get_event_resources.json")["data"],
         ]
         api = CalendarAPI(mock_client)
         detail = await api.get_event_detail("201")
@@ -80,11 +80,9 @@ class TestGetEventDetail:
         assert detail["resources"][1]["resource_type"] == "Equipment"
 
     async def test_calls_three_endpoints(self, mock_client: AsyncMock) -> None:
-        mock_client.get.side_effect = [
-            load_fixture("get_event.json"),
-            {"data": []},
-            {"data": []},
-        ]
+        mock_client.get.return_value = load_fixture("get_event.json")
+        mock_client.get_all.return_value = []
         api = CalendarAPI(mock_client)
         await api.get_event_detail("201")
-        assert mock_client.get.call_count == 3
+        assert mock_client.get.call_count == 1
+        assert mock_client.get_all.call_count == 2

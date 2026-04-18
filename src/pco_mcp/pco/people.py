@@ -33,8 +33,8 @@ class PeopleAPI:
             params["where[search_name_or_email]"] = email
         elif phone:
             params["where[search_name_or_email]"] = phone
-        result = await self._client.get("/people/v2/people", params=params)
-        return [self._simplify_person(p) for p in result.get("data", [])]
+        data = await self._client.get_all("/people/v2/people", params=params)
+        return [self._simplify_person(p) for p in data]
 
     async def get_person(self, person_id: str) -> dict[str, Any]:
         """Get full details for a person by ID."""
@@ -43,13 +43,13 @@ class PeopleAPI:
 
     async def list_lists(self) -> list[dict[str, Any]]:
         """Get all PCO Lists."""
-        result = await self._client.get("/people/v2/lists")
-        return [self._simplify_list(lst) for lst in result.get("data", [])]
+        data = await self._client.get_all("/people/v2/lists")
+        return [self._simplify_list(lst) for lst in data]
 
     async def get_list_members(self, list_id: str) -> list[dict[str, Any]]:
         """Get people in a specific list."""
-        result = await self._client.get(f"/people/v2/lists/{list_id}/people")
-        return [self._simplify_person(p) for p in result.get("data", [])]
+        data = await self._client.get_all(f"/people/v2/lists/{list_id}/people")
+        return [self._simplify_person(p) for p in data]
 
     async def create_person(
         self, first_name: str, last_name: str, email: str | None = None
@@ -259,19 +259,19 @@ class PeopleAPI:
     async def get_person_details(self, person_id: str) -> dict[str, Any]:
         """Get all contact details for a person (emails, phones, addresses)."""
         base = f"/people/v2/people/{person_id}"
-        emails_result = await self._client.get(f"{base}/emails")
-        phones_result = await self._client.get(f"{base}/phone_numbers")
-        addresses_result = await self._client.get(f"{base}/addresses")
+        emails = await self._client.get_all(f"{base}/emails")
+        phones = await self._client.get_all(f"{base}/phone_numbers")
+        addresses = await self._client.get_all(f"{base}/addresses")
         return {
-            "emails": [self._simplify_email(e) for e in emails_result.get("data", [])],
-            "phone_numbers": [self._simplify_phone(p) for p in phones_result.get("data", [])],
-            "addresses": [self._simplify_address(a) for a in addresses_result.get("data", [])],
+            "emails": [self._simplify_email(e) for e in emails],
+            "phone_numbers": [self._simplify_phone(p) for p in phones],
+            "addresses": [self._simplify_address(a) for a in addresses],
         }
 
     async def get_person_blockouts(self, person_id: str) -> list[dict[str, Any]]:
         """Get blockout dates for a person."""
-        result = await self._client.get(f"/people/v2/people/{person_id}/blockouts")
-        return [self._simplify_blockout(b) for b in result.get("data", [])]
+        data = await self._client.get_all(f"/people/v2/people/{person_id}/blockouts")
+        return [self._simplify_blockout(b) for b in data]
 
     async def add_blockout(
         self,
@@ -308,17 +308,17 @@ class PeopleAPI:
         return self._simplify_note(result["data"])
 
     async def get_notes(self, person_id: str) -> list[dict[str, Any]]:
-        """Get notes for a person (most recent first, capped at 50)."""
-        result = await self._client.get(
+        """Get notes for a person (most recent first)."""
+        data = await self._client.get_all(
             f"/people/v2/people/{person_id}/notes",
-            params={"order": "-created_at", "per_page": 50},
+            params={"order": "-created_at"},
         )
-        return [self._simplify_note(n) for n in result.get("data", [])]
+        return [self._simplify_note(n) for n in data]
 
     async def get_workflows(self) -> list[dict[str, Any]]:
         """List all workflows for the org."""
-        result = await self._client.get("/people/v2/workflows")
-        return [self._simplify_workflow(w) for w in result.get("data", [])]
+        data = await self._client.get_all("/people/v2/workflows")
+        return [self._simplify_workflow(w) for w in data]
 
     async def add_person_to_workflow(self, workflow_id: str, person_id: str) -> dict[str, Any]:
         """Add a person to a workflow (creates a card at the first step)."""

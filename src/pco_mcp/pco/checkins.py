@@ -11,11 +11,11 @@ class CheckInsAPI:
 
     async def get_events(self) -> list[dict[str, Any]]:
         """List all check-in events (non-archived)."""
-        result = await self._client.get(
+        data = await self._client.get_all(
             "/check-ins/v2/events",
             params={"where[archived_at]": ""},
         )
-        return [self._simplify_event(e) for e in result.get("data", [])]
+        return [self._simplify_event(e) for e in data]
 
     async def get_event_checkins(
         self,
@@ -23,11 +23,8 @@ class CheckInsAPI:
         start_date: str | None = None,
         end_date: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Get check-in records for an event, optionally filtered by date.
-
-        Capped at ~500 records.
-        """
-        params: dict[str, Any] = {"per_page": 25}
+        """Get check-in records for an event, optionally filtered by date."""
+        params: dict[str, Any] = {}
         if start_date:
             params["where[created_at][gte]"] = start_date
         if end_date:
@@ -35,7 +32,6 @@ class CheckInsAPI:
         all_checkins = await self._client.get_all(
             f"/check-ins/v2/events/{event_id}/check_ins",
             params=params,
-            max_pages=20,
         )
         return [self._simplify_checkin(c) for c in all_checkins]
 
@@ -45,7 +41,7 @@ class CheckInsAPI:
         start_date: str | None = None,
         end_date: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Get headcount data aggregated by event period. Capped at 100 periods."""
+        """Get headcount data aggregated by event period."""
         params: dict[str, Any] = {}
         if start_date:
             params["where[starts_at][gte]"] = start_date
@@ -54,7 +50,6 @@ class CheckInsAPI:
         periods = await self._client.get_all(
             f"/check-ins/v2/events/{event_id}/event_periods",
             params=params,
-            max_pages=4,
         )
         results: list[dict[str, Any]] = []
         for period in periods:

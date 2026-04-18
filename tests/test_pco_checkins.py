@@ -17,7 +17,7 @@ def mock_client() -> PCOClient:
 
 class TestGetEvents:
     async def test_returns_events(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_events.json")
+        mock_client.get_all.return_value = load_fixture("list_events.json")["data"]
         api = CheckInsAPI(mock_client)
         events = await api.get_events()
         assert len(events) == 2
@@ -25,14 +25,14 @@ class TestGetEvents:
         assert events[0]["id"] == "101"
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_events.json")
+        mock_client.get_all.return_value = load_fixture("list_events.json")["data"]
         api = CheckInsAPI(mock_client)
         await api.get_events()
-        call_path = mock_client.get.call_args.args[0]
+        call_path = mock_client.get_all.call_args.args[0]
         assert "/check-ins/v2/events" in call_path
 
     async def test_event_has_expected_fields(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_events.json")
+        mock_client.get_all.return_value = load_fixture("list_events.json")["data"]
         api = CheckInsAPI(mock_client)
         events = await api.get_events()
         event = events[0]
@@ -69,12 +69,6 @@ class TestGetEventCheckins:
         assert params.get("where[created_at][gte]") == "2026-04-01"
         assert params.get("where[created_at][lte]") == "2026-04-30"
 
-    async def test_caps_at_500_records(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = []
-        api = CheckInsAPI(mock_client)
-        await api.get_event_checkins("101")
-        call_kwargs = mock_client.get_all.call_args.kwargs
-        assert call_kwargs.get("max_pages", 50) <= 20
 
 
 class TestGetHeadcounts:

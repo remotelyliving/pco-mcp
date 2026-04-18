@@ -22,7 +22,7 @@ def mock_client() -> PCOClient:
 
 class TestGetListMembers:
     async def test_returns_people_in_list(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("get_list_members.json")
+        mock_client.get_all.return_value = load_fixture("get_list_members.json")["data"]
         api = PeopleAPI(mock_client)
         members = await api.get_list_members("42")
         assert len(members) == 2
@@ -30,14 +30,14 @@ class TestGetListMembers:
         assert members[1]["first_name"] == "Carol"
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("get_list_members.json")
+        mock_client.get_all.return_value = load_fixture("get_list_members.json")["data"]
         api = PeopleAPI(mock_client)
         await api.get_list_members("42")
-        call_path = mock_client.get.call_args.args[0]
+        call_path = mock_client.get_all.call_args.args[0]
         assert "/people/v2/lists/42/people" in call_path
 
     async def test_returns_simplified_records(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("get_list_members.json")
+        mock_client.get_all.return_value = load_fixture("get_list_members.json")["data"]
         api = PeopleAPI(mock_client)
         members = await api.get_list_members("42")
         record = members[0]

@@ -21,7 +21,7 @@ def mock_client() -> PCOClient:
 
 class TestListServiceTypes:
     async def test_returns_simplified_types(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_service_types.json")
+        mock_client.get_all.return_value = load_fixture("list_service_types.json")["data"]
         api = ServicesAPI(mock_client)
         types = await api.list_service_types()
         assert len(types) == 2
@@ -44,7 +44,7 @@ class TestGetUpcomingPlans:
 
 class TestListSongs:
     async def test_returns_songs(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_songs.json")
+        mock_client.get_all.return_value = load_fixture("list_songs.json")["data"]
         api = ServicesAPI(mock_client)
         songs = await api.list_songs()
         assert len(songs) == 1
@@ -54,7 +54,7 @@ class TestListSongs:
 
 class TestListPlanItems:
     async def test_returns_items(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_plan_items.json")
+        mock_client.get_all.return_value = load_fixture("list_plan_items.json")["data"]
         api = ServicesAPI(mock_client)
         items = await api.list_plan_items("201", "301")
         assert len(items) == 3
@@ -63,16 +63,16 @@ class TestListPlanItems:
         assert items[1]["item_type"] == "regular"
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_plan_items.json")
+        mock_client.get_all.return_value = load_fixture("list_plan_items.json")["data"]
         api = ServicesAPI(mock_client)
         await api.list_plan_items("201", "301")
-        call_path = mock_client.get.call_args.args[0]
+        call_path = mock_client.get_all.call_args.args[0]
         assert "201" in call_path
         assert "301" in call_path
         assert "items" in call_path
 
     async def test_item_has_expected_fields(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_plan_items.json")
+        mock_client.get_all.return_value = load_fixture("list_plan_items.json")["data"]
         api = ServicesAPI(mock_client)
         items = await api.list_plan_items("201", "301")
         item = items[0]
@@ -174,7 +174,7 @@ class TestRemoveItemFromPlan:
 
 class TestListTeams:
     async def test_returns_teams(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_teams.json")
+        mock_client.get_all.return_value = load_fixture("list_teams.json")["data"]
         api = ServicesAPI(mock_client)
         teams = await api.list_teams("201")
         assert len(teams) == 2
@@ -182,15 +182,15 @@ class TestListTeams:
         assert teams[1]["name"] == "Tech Team"
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_teams.json")
+        mock_client.get_all.return_value = load_fixture("list_teams.json")["data"]
         api = ServicesAPI(mock_client)
         await api.list_teams("201")
-        call_path = mock_client.get.call_args.args[0]
+        call_path = mock_client.get_all.call_args.args[0]
         assert "201" in call_path
         assert "teams" in call_path
 
     async def test_team_has_expected_fields(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_teams.json")
+        mock_client.get_all.return_value = load_fixture("list_teams.json")["data"]
         api = ServicesAPI(mock_client)
         teams = await api.list_teams("201")
         team = teams[0]
@@ -201,7 +201,7 @@ class TestListTeams:
 
 class TestListTeamPositions:
     async def test_returns_positions(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_team_positions.json")
+        mock_client.get_all.return_value = load_fixture("list_team_positions.json")["data"]
         api = ServicesAPI(mock_client)
         positions = await api.list_team_positions("701")
         assert len(positions) == 3
@@ -209,10 +209,10 @@ class TestListTeamPositions:
         assert positions[1]["name"] == "Electric Guitar"
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_team_positions.json")
+        mock_client.get_all.return_value = load_fixture("list_team_positions.json")["data"]
         api = ServicesAPI(mock_client)
         await api.list_team_positions("701")
-        call_path = mock_client.get.call_args.args[0]
+        call_path = mock_client.get_all.call_args.args[0]
         assert "701" in call_path
         assert "team_positions" in call_path
 
@@ -231,7 +231,7 @@ class TestRemoveTeamMember:
 
 class TestGetSongScheduleHistory:
     async def test_returns_schedule_records(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("get_song_schedule_history.json")
+        mock_client.get_all.return_value = load_fixture("get_song_schedule_history.json")["data"]
         api = ServicesAPI(mock_client)
         history = await api.get_song_schedule_history("1001")
         assert len(history) == 2
@@ -240,15 +240,15 @@ class TestGetSongScheduleHistory:
         assert history[1]["key_name"] == "A"
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("get_song_schedule_history.json")
+        mock_client.get_all.return_value = load_fixture("get_song_schedule_history.json")["data"]
         api = ServicesAPI(mock_client)
         await api.get_song_schedule_history("1001")
-        call_path = mock_client.get.call_args.args[0]
+        call_path = mock_client.get_all.call_args.args[0]
         assert "1001" in call_path
         assert "song_schedules" in call_path
 
     async def test_record_has_expected_fields(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("get_song_schedule_history.json")
+        mock_client.get_all.return_value = load_fixture("get_song_schedule_history.json")["data"]
         api = ServicesAPI(mock_client)
         history = await api.get_song_schedule_history("1001")
         record = history[0]
@@ -259,7 +259,7 @@ class TestGetSongScheduleHistory:
 
 class TestListSongArrangements:
     async def test_returns_arrangements(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_song_arrangements.json")
+        mock_client.get_all.return_value = load_fixture("list_song_arrangements.json")["data"]
         api = ServicesAPI(mock_client)
         arrangements = await api.list_song_arrangements("1001")
         assert len(arrangements) == 2
@@ -268,15 +268,15 @@ class TestListSongArrangements:
         assert arrangements[1]["name"] == "Acoustic"
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_song_arrangements.json")
+        mock_client.get_all.return_value = load_fixture("list_song_arrangements.json")["data"]
         api = ServicesAPI(mock_client)
         await api.list_song_arrangements("1001")
-        call_path = mock_client.get.call_args.args[0]
+        call_path = mock_client.get_all.call_args.args[0]
         assert "1001" in call_path
         assert "arrangements" in call_path
 
     async def test_arrangement_has_expected_fields(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_song_arrangements.json")
+        mock_client.get_all.return_value = load_fixture("list_song_arrangements.json")["data"]
         api = ServicesAPI(mock_client)
         arrangements = await api.list_song_arrangements("1001")
         arr = arrangements[0]
@@ -288,7 +288,7 @@ class TestListSongArrangements:
 
 class TestListPlanTemplates:
     async def test_returns_templates(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_plan_templates.json")
+        mock_client.get_all.return_value = load_fixture("list_plan_templates.json")["data"]
         api = ServicesAPI(mock_client)
         templates = await api.list_plan_templates("201")
         assert len(templates) == 2
@@ -297,17 +297,17 @@ class TestListPlanTemplates:
         assert templates[1]["name"] == "Holiday Service"
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_plan_templates.json")
+        mock_client.get_all.return_value = load_fixture("list_plan_templates.json")["data"]
         api = ServicesAPI(mock_client)
         await api.list_plan_templates("201")
-        call_path = mock_client.get.call_args.args[0]
+        call_path = mock_client.get_all.call_args.args[0]
         assert "201" in call_path
         assert "plan_templates" in call_path
 
 
 class TestGetNeededPositions:
     async def test_returns_needed_positions(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("get_needed_positions.json")
+        mock_client.get_all.return_value = load_fixture("get_needed_positions.json")["data"]
         api = ServicesAPI(mock_client)
         positions = await api.get_needed_positions("201", "301")
         assert len(positions) == 2
@@ -317,16 +317,16 @@ class TestGetNeededPositions:
         assert positions[1]["quantity"] == 2
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("get_needed_positions.json")
+        mock_client.get_all.return_value = load_fixture("get_needed_positions.json")["data"]
         api = ServicesAPI(mock_client)
         await api.get_needed_positions("201", "301")
-        call_path = mock_client.get.call_args.args[0]
+        call_path = mock_client.get_all.call_args.args[0]
         assert "201" in call_path
         assert "301" in call_path
         assert "needed_positions" in call_path
 
     async def test_position_has_scheduled_to_field(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("get_needed_positions.json")
+        mock_client.get_all.return_value = load_fixture("get_needed_positions.json")["data"]
         api = ServicesAPI(mock_client)
         positions = await api.get_needed_positions("201", "301")
         assert "scheduled_to" in positions[0]
@@ -548,7 +548,7 @@ class TestCreateAttachment:
 
 class TestListAttachments:
     async def test_returns_attachments(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_attachments.json")
+        mock_client.get_all.return_value = load_fixture("list_attachments.json")["data"]
         api = ServicesAPI(mock_client)
         attachments = await api.list_attachments("4001", "1001")
         assert len(attachments) == 2
@@ -556,10 +556,10 @@ class TestListAttachments:
         assert attachments[1]["content_type"] == "audio/mpeg"
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_attachments.json")
+        mock_client.get_all.return_value = load_fixture("list_attachments.json")["data"]
         api = ServicesAPI(mock_client)
         await api.list_attachments("4001", "1001")
-        call_path = mock_client.get.call_args.args[0]
+        call_path = mock_client.get_all.call_args.args[0]
         assert "4001" in call_path
         assert "1001" in call_path
         assert "attachments" in call_path
@@ -613,7 +613,7 @@ class TestCreateMedia:
 
 class TestListMedia:
     async def test_returns_media_list(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_media.json")
+        mock_client.get_all.return_value = load_fixture("list_media.json")["data"]
         api = ServicesAPI(mock_client)
         media = await api.list_media()
         assert len(media) == 2
@@ -621,10 +621,10 @@ class TestListMedia:
         assert media[1]["media_type"] == "countdown"
 
     async def test_filters_by_media_type(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_media.json")
+        mock_client.get_all.return_value = load_fixture("list_media.json")["data"]
         api = ServicesAPI(mock_client)
         await api.list_media(media_type="image")
-        params = mock_client.get.call_args.kwargs.get("params", {})
+        params = mock_client.get_all.call_args.kwargs.get("params", {})
         assert params.get("where[media_type]") == "image"
 
 
@@ -680,15 +680,6 @@ class TestFlagMissingCCLI:
         assert "Custom Song" in missing_titles
         assert "Amazing Grace" not in missing_titles
 
-    async def test_caps_at_200_songs(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = (
-            load_fixture("list_songs_page1.json")["data"]
-            + load_fixture("list_songs_page2.json")["data"]
-        )
-        api = ServicesAPI(mock_client)
-        await api.flag_missing_ccli()
-        call_kwargs = mock_client.get_all.call_args.kwargs
-        assert call_kwargs.get("max_pages", 50) <= 10
 
 
 class TestCreateServiceType:

@@ -22,8 +22,8 @@ class ServicesAPI:
 
     async def list_service_types(self) -> list[dict[str, Any]]:
         """List all service types."""
-        result = await self._client.get("/services/v2/service_types")
-        return [self._simplify_service_type(st) for st in result.get("data", [])]
+        data = await self._client.get_all("/services/v2/service_types")
+        return [self._simplify_service_type(st) for st in data]
 
     async def get_upcoming_plans(self, service_type_id: str) -> list[dict[str, Any]]:
         """Get upcoming plans for a service type (all pages)."""
@@ -38,12 +38,10 @@ class ServicesAPI:
         base = f"/services/v2/service_types/{service_type_id}/plans/{plan_id}"
         result = await self._client.get(base)
         plan = self._simplify_plan(result["data"])
-        # Fetch items (songs/elements in the service order)
-        items_result = await self._client.get(f"{base}/items")
-        plan["items"] = [self._simplify_item(i) for i in items_result.get("data", [])]
-        # Fetch team members
-        team_result = await self._client.get(f"{base}/team_members")
-        plan["team_members"] = [self._simplify_team_member(tm) for tm in team_result.get("data", [])]
+        items = await self._client.get_all(f"{base}/items")
+        plan["items"] = [self._simplify_item(i) for i in items]
+        team = await self._client.get_all(f"{base}/team_members")
+        plan["team_members"] = [self._simplify_team_member(tm) for tm in team]
         return plan
 
     async def list_songs(self, query: str | None = None) -> list[dict[str, Any]]:
@@ -56,15 +54,15 @@ class ServicesAPI:
         params: dict[str, Any] = {}
         if query:
             params["where[title]"] = query
-        result = await self._client.get("/services/v2/songs", params=params)
-        return [self._simplify_song(s) for s in result.get("data", [])]
+        data = await self._client.get_all("/services/v2/songs", params=params)
+        return [self._simplify_song(s) for s in data]
 
     async def list_team_members(self, service_type_id: str, plan_id: str) -> list[dict[str, Any]]:
         """List team members for a plan."""
-        result = await self._client.get(
+        data = await self._client.get_all(
             f"/services/v2/service_types/{service_type_id}/plans/{plan_id}/team_members"
         )
-        return [self._simplify_team_member(tm) for tm in result.get("data", [])]
+        return [self._simplify_team_member(tm) for tm in data]
 
     async def schedule_team_member(
         self, service_type_id: str, plan_id: str, person_id: str, team_position_name: str
@@ -136,10 +134,10 @@ class ServicesAPI:
         self, service_type_id: str, plan_id: str
     ) -> list[dict[str, Any]]:
         """List items (songs/elements) on a plan."""
-        result = await self._client.get(
+        data = await self._client.get_all(
             f"/services/v2/service_types/{service_type_id}/plans/{plan_id}/items"
         )
-        return [self._simplify_item(i) for i in result.get("data", [])]
+        return [self._simplify_item(i) for i in data]
 
     async def add_item_to_plan(
         self,
@@ -182,17 +180,17 @@ class ServicesAPI:
 
     async def list_teams(self, service_type_id: str) -> list[dict[str, Any]]:
         """List teams for a service type."""
-        result = await self._client.get(
+        data = await self._client.get_all(
             f"/services/v2/service_types/{service_type_id}/teams"
         )
-        return [self._simplify_team(t) for t in result.get("data", [])]
+        return [self._simplify_team(t) for t in data]
 
     async def list_team_positions(self, team_id: str) -> list[dict[str, Any]]:
         """List positions for a team."""
-        result = await self._client.get(
+        data = await self._client.get_all(
             f"/services/v2/teams/{team_id}/team_positions"
         )
-        return [self._simplify_position(p) for p in result.get("data", [])]
+        return [self._simplify_position(p) for p in data]
 
     async def remove_team_member(
         self, service_type_id: str, plan_id: str, team_member_id: str
@@ -266,17 +264,17 @@ class ServicesAPI:
 
     async def get_song_schedule_history(self, song_id: str) -> list[dict[str, Any]]:
         """Get schedule history for a song."""
-        result = await self._client.get(
+        data = await self._client.get_all(
             f"/services/v2/songs/{song_id}/song_schedules"
         )
-        return [self._simplify_song_schedule(s) for s in result.get("data", [])]
+        return [self._simplify_song_schedule(s) for s in data]
 
     async def list_song_arrangements(self, song_id: str) -> list[dict[str, Any]]:
         """List arrangements for a song."""
-        result = await self._client.get(
+        data = await self._client.get_all(
             f"/services/v2/songs/{song_id}/arrangements"
         )
-        return [self._simplify_arrangement(a) for a in result.get("data", [])]
+        return [self._simplify_arrangement(a) for a in data]
 
     async def create_arrangement(
         self,
@@ -357,19 +355,19 @@ class ServicesAPI:
 
     async def list_plan_templates(self, service_type_id: str) -> list[dict[str, Any]]:
         """List plan templates for a service type."""
-        result = await self._client.get(
+        data = await self._client.get_all(
             f"/services/v2/service_types/{service_type_id}/plan_templates"
         )
-        return [self._simplify_template(t) for t in result.get("data", [])]
+        return [self._simplify_template(t) for t in data]
 
     async def get_needed_positions(
         self, service_type_id: str, plan_id: str
     ) -> list[dict[str, Any]]:
         """Get needed (unfilled) positions for a plan."""
-        result = await self._client.get(
+        data = await self._client.get_all(
             f"/services/v2/service_types/{service_type_id}/plans/{plan_id}/needed_positions"
         )
-        return [self._simplify_needed_position(np) for np in result.get("data", [])]
+        return [self._simplify_needed_position(np) for np in data]
 
     async def upload_attachment(
         self,
@@ -434,10 +432,10 @@ class ServicesAPI:
         self, song_id: str, arrangement_id: str
     ) -> list[dict[str, Any]]:
         """List attachments for an arrangement."""
-        result = await self._client.get(
+        data = await self._client.get_all(
             f"/services/v2/songs/{song_id}/arrangements/{arrangement_id}/attachments"
         )
-        return [self._simplify_attachment(a) for a in result.get("data", [])]
+        return [self._simplify_attachment(a) for a in data]
 
     async def create_media(
         self,
@@ -485,13 +483,8 @@ class ServicesAPI:
         return self._simplify_ccli_reporting(result["data"])
 
     async def flag_missing_ccli(self) -> dict[str, Any]:
-        """Scan the song library and return songs missing CCLI numbers.
-
-        Caps at ~200 songs to avoid excessive API calls.
-        """
-        all_songs = await self._client.get_all(
-            "/services/v2/songs", params={"per_page": 25}, max_pages=8
-        )
+        """Scan the song library and return songs missing CCLI numbers."""
+        all_songs = await self._client.get_all("/services/v2/songs")
         missing = []
         for raw in all_songs:
             attrs = raw.get("attributes", {})
@@ -508,8 +501,8 @@ class ServicesAPI:
         params: dict[str, Any] = {}
         if media_type:
             params["where[media_type]"] = media_type
-        result = await self._client.get("/services/v2/media", params=params)
-        return [self._simplify_media(m) for m in result.get("data", [])]
+        data = await self._client.get_all("/services/v2/media", params=params)
+        return [self._simplify_media(m) for m in data]
 
     async def update_media(
         self,

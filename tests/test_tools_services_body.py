@@ -53,19 +53,17 @@ def make_mcp():
 
 class TestListServiceTypesToolBody:
     async def test_list_service_types(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
-            "data": [
-                {
-                    "type": "ServiceType",
-                    "id": "201",
-                    "attributes": {
-                        "name": "Sunday Morning",
-                        "frequency": "Every week",
-                        "last_plan_from": "2026-03-30",
-                    },
-                }
-            ]
-        }
+        mock_client.get_all.return_value = [
+            {
+                "type": "ServiceType",
+                "id": "201",
+                "attributes": {
+                    "name": "Sunday Morning",
+                    "frequency": "Every week",
+                    "last_plan_from": "2026-03-30",
+                },
+            }
+        ]
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_service_types")
         types = await fn()
@@ -97,7 +95,7 @@ class TestGetUpcomingPlansToolBody:
 
 class TestGetPlanDetailsToolBody:
     async def test_get_plan_details(self, mock_client: AsyncMock) -> None:
-        plan_response = {
+        mock_client.get.return_value = {
             "data": {
                 "type": "Plan",
                 "id": "301",
@@ -110,8 +108,7 @@ class TestGetPlanDetailsToolBody:
                 },
             }
         }
-        empty_list = {"data": []}
-        mock_client.get.side_effect = [plan_response, empty_list, empty_list]
+        mock_client.get_all.return_value = []
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "get_plan_details")
         plan = await fn(service_type_id="201", plan_id="301")
@@ -123,20 +120,18 @@ class TestGetPlanDetailsToolBody:
 
 class TestListSongsToolBody:
     async def test_list_songs_no_query(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
-            "data": [
-                {
-                    "type": "Song",
-                    "id": "401",
-                    "attributes": {
-                        "title": "Amazing Grace",
-                        "author": "John Newton",
-                        "ccli_number": "12345",
-                        "last_scheduled_at": "2026-03-30",
-                    },
-                }
-            ]
-        }
+        mock_client.get_all.return_value = [
+            {
+                "type": "Song",
+                "id": "401",
+                "attributes": {
+                    "title": "Amazing Grace",
+                    "author": "John Newton",
+                    "ccli_number": "12345",
+                    "last_scheduled_at": "2026-03-30",
+                },
+            }
+        ]
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_songs")
         songs = await fn()
@@ -144,7 +139,7 @@ class TestListSongsToolBody:
         assert songs[0]["title"] == "Amazing Grace"
 
     async def test_list_songs_with_query(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {"data": []}
+        mock_client.get_all.return_value = []
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_songs")
         songs = await fn(query="Amazing")
@@ -153,20 +148,18 @@ class TestListSongsToolBody:
 
 class TestListTeamMembersToolBody:
     async def test_list_team_members(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
-            "data": [
-                {
-                    "type": "PlanPerson",
-                    "id": "501",
-                    "attributes": {
-                        "name": "Alice Smith",
-                        "team_position_name": "Vocalist",
-                        "status": "C",
-                        "notification_sent_at": None,
-                    },
-                }
-            ]
-        }
+        mock_client.get_all.return_value = [
+            {
+                "type": "PlanPerson",
+                "id": "501",
+                "attributes": {
+                    "name": "Alice Smith",
+                    "team_position_name": "Vocalist",
+                    "status": "C",
+                    "notification_sent_at": None,
+                },
+            }
+        ]
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_team_members")
         members = await fn(service_type_id="201", plan_id="301")
@@ -393,20 +386,18 @@ class TestCreateAttachmentToolBody:
 
 class TestListAttachmentsToolBody:
     async def test_list_attachments(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
-            "data": [
-                {
-                    "type": "Attachment",
-                    "id": "5001",
-                    "attributes": {
-                        "filename": "chart.pdf",
-                        "content_type": "application/pdf",
-                        "file_size": 1234,
-                        "url": "https://cdn.example.com/chart.pdf",
-                    },
-                }
-            ]
-        }
+        mock_client.get_all.return_value = [
+            {
+                "type": "Attachment",
+                "id": "5001",
+                "attributes": {
+                    "filename": "chart.pdf",
+                    "content_type": "application/pdf",
+                    "file_size": 1234,
+                    "url": "https://cdn.example.com/chart.pdf",
+                },
+            }
+        ]
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_attachments")
         attachments = await fn(song_id="4001", arrangement_id="1001")
@@ -463,20 +454,18 @@ class TestCreateMediaToolBody:
 
 class TestListMediaToolBody:
     async def test_list_media(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
-            "data": [
-                {
-                    "type": "Media",
-                    "id": "6001",
-                    "attributes": {
-                        "title": "Background",
-                        "media_type": "image",
-                        "thumbnail_url": None,
-                        "creator_name": "Admin",
-                    },
-                }
-            ]
-        }
+        mock_client.get_all.return_value = [
+            {
+                "type": "Media",
+                "id": "6001",
+                "attributes": {
+                    "title": "Background",
+                    "media_type": "image",
+                    "thumbnail_url": None,
+                    "creator_name": "Admin",
+                },
+            }
+        ]
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_media")
         media = await fn()
@@ -526,21 +515,19 @@ class TestGetCCLIReportingToolBody:
 
 class TestGetSongUsageReportToolBody:
     async def test_get_song_usage_report(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
-            "data": [
-                {
-                    "type": "SongSchedule",
-                    "id": "8001",
-                    "attributes": {
-                        "plan_dates": "March 30, 2026",
-                        "plan_sort_date": "2026-03-30T09:00:00Z",
-                        "service_type_name": "Sunday Morning",
-                        "arrangement_name": "Standard",
-                        "key_name": "G",
-                    },
-                }
-            ]
-        }
+        mock_client.get_all.return_value = [
+            {
+                "type": "SongSchedule",
+                "id": "8001",
+                "attributes": {
+                    "plan_dates": "March 30, 2026",
+                    "plan_sort_date": "2026-03-30T09:00:00Z",
+                    "service_type_name": "Sunday Morning",
+                    "arrangement_name": "Standard",
+                    "key_name": "G",
+                },
+            }
+        ]
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "get_song_usage_report")
         history = await fn(song_id="4001")

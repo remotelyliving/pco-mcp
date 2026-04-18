@@ -444,20 +444,18 @@ class TestSafeToolCallExceptions:
 class TestGetPersonBlockoutsToolBody:
     @pytest.mark.asyncio
     async def test_get_person_blockouts(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
-            "data": [
-                {
-                    "type": "Blockout",
-                    "id": "700",
-                    "attributes": {
-                        "reason": "Vacation",
-                        "starts_at": "2026-05-01T00:00:00Z",
-                        "ends_at": "2026-05-07T00:00:00Z",
-                        "repeat_frequency": None,
-                    },
-                }
-            ]
-        }
+        mock_client.get_all.return_value = [
+            {
+                "type": "Blockout",
+                "id": "700",
+                "attributes": {
+                    "reason": "Vacation",
+                    "starts_at": "2026-05-01T00:00:00Z",
+                    "ends_at": "2026-05-07T00:00:00Z",
+                    "repeat_frequency": None,
+                },
+            }
+        ]
         mcp = make_people_mcp()
         fn = _get_tool_fn(mcp, "get_person_blockouts")
         result = await fn(person_id="1001")
@@ -466,7 +464,7 @@ class TestGetPersonBlockoutsToolBody:
 
     @pytest.mark.asyncio
     async def test_get_person_blockouts_empty(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {"data": []}
+        mock_client.get_all.return_value = []
         mcp = make_people_mcp()
         fn = _get_tool_fn(mcp, "get_person_blockouts")
         result = await fn(person_id="1001")
@@ -482,22 +480,20 @@ class TestGetPersonBlockoutsToolBody:
 class TestListPlanItemsToolBody:
     @pytest.mark.asyncio
     async def test_list_plan_items(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
-            "data": [
-                {
-                    "type": "Item",
-                    "id": "800",
-                    "attributes": {
-                        "title": "Opening Song",
-                        "item_type": "song",
-                        "sequence": 1,
-                        "length": 240,
-                        "song_id": "401",
-                        "description": None,
-                    },
-                }
-            ]
-        }
+        mock_client.get_all.return_value = [
+            {
+                "type": "Item",
+                "id": "800",
+                "attributes": {
+                    "title": "Opening Song",
+                    "item_type": "song",
+                    "sequence": 1,
+                    "length": 240,
+                    "song_id": "401",
+                    "description": None,
+                },
+            }
+        ]
         mcp = make_services_mcp()
         fn = _get_tool_fn(mcp, "list_plan_items")
         result = await fn(service_type_id="201", plan_id="301")
@@ -510,19 +506,17 @@ class TestListPlanItemsToolBody:
 class TestListTeamsToolBody:
     @pytest.mark.asyncio
     async def test_list_teams(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
-            "data": [
-                {
-                    "type": "Team",
-                    "id": "900",
-                    "attributes": {
-                        "name": "Worship Team",
-                        "schedule_to": "plan",
-                        "rehearsal_team": False,
-                    },
-                }
-            ]
-        }
+        mock_client.get_all.return_value = [
+            {
+                "type": "Team",
+                "id": "900",
+                "attributes": {
+                    "name": "Worship Team",
+                    "schedule_to": "plan",
+                    "rehearsal_team": False,
+                },
+            }
+        ]
         mcp = make_services_mcp()
         fn = _get_tool_fn(mcp, "list_teams")
         result = await fn(service_type_id="201")
@@ -534,19 +528,17 @@ class TestListTeamsToolBody:
 class TestListTeamPositionsToolBody:
     @pytest.mark.asyncio
     async def test_list_team_positions(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
-            "data": [
-                {
-                    "type": "TeamPosition",
-                    "id": "950",
-                    "attributes": {
-                        "name": "Lead Vocalist",
-                        "quantity": 1,
-                        "tag_groups": [],
-                    },
-                }
-            ]
-        }
+        mock_client.get_all.return_value = [
+            {
+                "type": "TeamPosition",
+                "id": "950",
+                "attributes": {
+                    "name": "Lead Vocalist",
+                    "quantity": 1,
+                    "tag_groups": [],
+                },
+            }
+        ]
         mcp = make_services_mcp()
         fn = _get_tool_fn(mcp, "list_team_positions")
         result = await fn(team_id="900")
@@ -558,20 +550,18 @@ class TestListTeamPositionsToolBody:
 class TestGetSongScheduleHistoryToolBody:
     @pytest.mark.asyncio
     async def test_get_song_schedule_history(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
-            "data": [
-                {
-                    "type": "SongSchedule",
-                    "id": "1001",
-                    "attributes": {
-                        "plan_dates": "March 30, 2026",
-                        "service_type_name": "Sunday Morning",
-                        "key_name": "A",
-                        "arrangement_name": "Default",
-                    },
-                }
-            ]
-        }
+        mock_client.get_all.return_value = [
+            {
+                "type": "SongSchedule",
+                "id": "1001",
+                "attributes": {
+                    "plan_dates": "March 30, 2026",
+                    "service_type_name": "Sunday Morning",
+                    "key_name": "A",
+                    "arrangement_name": "Default",
+                },
+            }
+        ]
         mcp = make_services_mcp()
         fn = _get_tool_fn(mcp, "get_song_schedule_history")
         result = await fn(song_id="401")
@@ -583,22 +573,20 @@ class TestGetSongScheduleHistoryToolBody:
 class TestListSongArrangementsToolBody:
     @pytest.mark.asyncio
     async def test_list_song_arrangements(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
-            "data": [
-                {
-                    "type": "Arrangement",
-                    "id": "600",
-                    "attributes": {
-                        "name": "Default Arrangement",
-                        "bpm": 72,
-                        "meter": "4/4",
-                        "length": 240,
-                        "notes": "Original key",
-                        "updated_at": "2026-01-01T00:00:00Z",
-                    },
-                }
-            ]
-        }
+        mock_client.get_all.return_value = [
+            {
+                "type": "Arrangement",
+                "id": "600",
+                "attributes": {
+                    "name": "Default Arrangement",
+                    "bpm": 72,
+                    "meter": "4/4",
+                    "length": 240,
+                    "notes": "Original key",
+                    "updated_at": "2026-01-01T00:00:00Z",
+                },
+            }
+        ]
         mcp = make_services_mcp()
         fn = _get_tool_fn(mcp, "list_song_arrangements")
         result = await fn(song_id="401")
@@ -611,19 +599,17 @@ class TestListSongArrangementsToolBody:
 class TestListPlanTemplatesToolBody:
     @pytest.mark.asyncio
     async def test_list_plan_templates(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
-            "data": [
-                {
-                    "type": "PlanTemplate",
-                    "id": "700",
-                    "attributes": {
-                        "name": "Standard Sunday",
-                        "item_count": 8,
-                        "updated_at": "2026-01-10T00:00:00Z",
-                    },
-                }
-            ]
-        }
+        mock_client.get_all.return_value = [
+            {
+                "type": "PlanTemplate",
+                "id": "700",
+                "attributes": {
+                    "name": "Standard Sunday",
+                    "item_count": 8,
+                    "updated_at": "2026-01-10T00:00:00Z",
+                },
+            }
+        ]
         mcp = make_services_mcp()
         fn = _get_tool_fn(mcp, "list_plan_templates")
         result = await fn(service_type_id="201")
@@ -635,22 +621,20 @@ class TestListPlanTemplatesToolBody:
 class TestGetNeededPositionsToolBody:
     @pytest.mark.asyncio
     async def test_get_needed_positions(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
-            "data": [
-                {
-                    "type": "NeededPosition",
-                    "id": "800",
-                    "attributes": {
-                        "quantity": 2,
-                        "time": "2026-04-20T09:00:00Z",
-                        "team_position_name": "Drummer",
-                    },
-                    "relationships": {
-                        "team": {"data": {"id": "900"}},
-                    },
-                }
-            ]
-        }
+        mock_client.get_all.return_value = [
+            {
+                "type": "NeededPosition",
+                "id": "800",
+                "attributes": {
+                    "quantity": 2,
+                    "time": "2026-04-20T09:00:00Z",
+                    "team_position_name": "Drummer",
+                },
+                "relationships": {
+                    "team": {"data": {"id": "900"}},
+                },
+            }
+        ]
         mcp = make_services_mcp()
         fn = _get_tool_fn(mcp, "get_needed_positions")
         result = await fn(service_type_id="201", plan_id="301")

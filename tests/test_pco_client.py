@@ -1,8 +1,10 @@
 
+from unittest.mock import AsyncMock
+
 import httpx
 import pytest
 
-from pco_mcp.pco.client import PCOAPIError, PCOClient, PCORateLimitError
+from pco_mcp.pco.client import PagedResult, PCOAPIError, PCOClient, PCORateLimitError
 
 
 @pytest.fixture
@@ -236,3 +238,57 @@ class TestPutRaw:
                 data=b"file-bytes",
                 content_type="application/pdf",
             )
+
+
+@pytest.fixture
+def make_client() -> PCOClient:
+    c = PCOClient(base_url="https://api.example.com", access_token="t")
+    c.get = AsyncMock()  # type: ignore[method-assign]
+    return c
+
+
+class TestGetAllReturnsPagedResult:
+    async def test_returns_paged_result_single_page(self, make_client: PCOClient) -> None:
+        make_client.get.return_value = {
+            "data": [{"id": "1"}, {"id": "2"}],
+            "links": {},
+            "meta": {"total_count": 2},
+        }
+        result = await make_client.get_all("/things")
+        assert isinstance(result, PagedResult)
+        assert result.items == [{"id": "1"}, {"id": "2"}]
+        assert result.truncated is False
+
+    async def test_sets_truncated_when_max_pages_fires(self, make_client: PCOClient) -> None:
+        # Every page has a next link and offset, simulating unlimited pagination
+        make_client.get.return_value = {
+            "data": [{"id": "x"}],
+            "links": {"next": "https://api.example.com/things?offset=100"},
+            "meta": {"next": {"offset": 100}, "total_count": 500},
+        }
+        result = await make_client.get_all("/things", max_pages=3)
+        assert result.truncated is True
+        assert result.total_count == 500
+        assert len(result.items) == 3  # one item per page, three pages
+
+    async def test_total_count_captured_from_last_page(self, make_client: PCOClient) -> None:
+        # When next link clears, the response's meta.total_count is captured
+        make_client.get.return_value = {
+            "data": [{"id": "1"}],
+            "links": {},
+            "meta": {"total_count": 1},
+        }
+        result = await make_client.get_all("/things")
+        assert result.total_count == 1
+        assert result.truncated is False
+
+    async def test_iterable_like_list(self, make_client: PCOClient) -> None:
+        # Confirms the list-like shim works end-to-end
+        make_client.get.return_value = {
+            "data": [{"id": "a"}, {"id": "b"}],
+            "links": {},
+            "meta": {},
+        }
+        result = await make_client.get_all("/things")
+        as_list = [item["id"] for item in result]
+        assert as_list == ["a", "b"]

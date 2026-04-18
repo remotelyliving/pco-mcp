@@ -56,10 +56,10 @@ class TestListCalendarEventsToolBody:
 
 class TestGetEventDetailsToolBody:
     async def test_get_event_details(self, mock_client: AsyncMock) -> None:
-        mock_client.get.side_effect = [
-            {"data": {"type": "Event", "id": "201", "attributes": {"name": "Easter", "description": "", "starts_at": "2026-04-20T09:00:00Z", "ends_at": "2026-04-20T11:00:00Z", "recurrence": None, "visible_in_church_center": True}}},
-            {"data": [{"type": "EventInstance", "id": "301", "attributes": {"starts_at": "2026-04-20T09:00:00Z", "ends_at": "2026-04-20T11:00:00Z", "location": "Sanctuary"}}]},
-            {"data": [{"type": "EventResourceRequest", "id": "401", "attributes": {"name": "Sanctuary", "resource_type": "Room", "approval_status": "approved"}}]},
+        mock_client.get.return_value = {"data": {"type": "Event", "id": "201", "attributes": {"name": "Easter", "description": "", "starts_at": "2026-04-20T09:00:00Z", "ends_at": "2026-04-20T11:00:00Z", "recurrence": None, "visible_in_church_center": True}}}
+        mock_client.get_all.side_effect = [
+            [{"type": "EventInstance", "id": "301", "attributes": {"starts_at": "2026-04-20T09:00:00Z", "ends_at": "2026-04-20T11:00:00Z", "location": "Sanctuary"}}],
+            [{"type": "EventResourceRequest", "id": "401", "attributes": {"name": "Sanctuary", "resource_type": "Room", "approval_status": "approved"}}],
         ]
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "get_event_details")

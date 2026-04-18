@@ -127,22 +127,38 @@ class PCOClient:
         self._check_response(response)
 
     async def get_all(
-        self, path: str, params: dict[str, Any] | None = None, max_pages: int = 50
-    ) -> list[Any]:
-        """Fetch all pages of a paginated PCO endpoint. Returns flat list of data items."""
-        all_data: list[Any] = []
+        self, path: str, params: dict[str, Any] | None = None, max_pages: int = 100
+    ) -> PagedResult:
+        """Fetch all pages of a paginated PCO endpoint.
+
+        Returns a PagedResult dataclass carrying items + total_count + truncated.
+        PagedResult is list-like so callers can iterate/index it directly.
+        Uses per_page=100 (PCO's maximum) unless the caller overrides it.
+        """
+        items: list[Any] = []
         current_params: dict[str, Any] = dict(params or {})
-        for _ in range(max_pages):
+        current_params.setdefault("per_page", 100)
+        total_count: int | None = None
+        for page_num in range(max_pages):
             result = await self.get(path, params=current_params)
-            all_data.extend(result.get("data", []))
+            items.extend(result.get("data", []))
+            meta = result.get("meta") or {}
+            if "total_count" in meta:
+                total_count = meta["total_count"]
             next_link = result.get("links", {}).get("next")
             if not next_link:
-                break
-            next_offset = result.get("meta", {}).get("next", {}).get("offset")
+                return PagedResult(items=items, total_count=total_count, truncated=False)
+            next_offset = meta.get("next", {}).get("offset")
             if next_offset is None:
-                break
+                return PagedResult(items=items, total_count=total_count, truncated=False)
             current_params["offset"] = next_offset
-        return all_data
+            if page_num == max_pages - 1:
+                logger.warning(
+                    "get_all truncated at max_pages=%d for %s (fetched %d, total_count=%s)",
+                    max_pages, path, len(items), total_count,
+                )
+                return PagedResult(items=items, total_count=total_count, truncated=True)
+        return PagedResult(items=items, total_count=total_count, truncated=False)
 
     def _check_response(self, response: httpx.Response) -> None:
         """Check response status and raise appropriate errors."""

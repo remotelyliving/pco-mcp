@@ -53,22 +53,20 @@ def make_mcp():
 
 class TestSearchPeopleToolBody:
     async def test_calls_api_and_returns_results(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
-            "data": [
-                {
-                    "type": "Person",
-                    "id": "1001",
-                    "attributes": {
-                        "first_name": "Alice",
-                        "last_name": "Smith",
-                        "email_addresses": [{"address": "alice@example.com"}],
-                        "phone_numbers": [],
-                        "membership": "Member",
-                        "status": "active",
-                    },
-                }
-            ]
-        }
+        mock_client.get_all.return_value = [
+            {
+                "type": "Person",
+                "id": "1001",
+                "attributes": {
+                    "first_name": "Alice",
+                    "last_name": "Smith",
+                    "email_addresses": [{"address": "alice@example.com"}],
+                    "phone_numbers": [],
+                    "membership": "Member",
+                    "status": "active",
+                },
+            }
+        ]
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "search_people")
         results = await fn(name="Alice")
@@ -76,14 +74,14 @@ class TestSearchPeopleToolBody:
         assert results[0]["first_name"] == "Alice"
 
     async def test_search_with_email(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {"data": []}
+        mock_client.get_all.return_value = []
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "search_people")
         results = await fn(email="alice@example.com")
         assert results == []
 
     async def test_search_with_phone(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {"data": []}
+        mock_client.get_all.return_value = []
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "search_people")
         results = await fn(phone="555-0101")
@@ -115,19 +113,17 @@ class TestGetPersonToolBody:
 
 class TestListListsToolBody:
     async def test_list_lists_returns_lists(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
-            "data": [
-                {
-                    "type": "List",
-                    "id": "10",
-                    "attributes": {
-                        "name": "Volunteers",
-                        "description": "All volunteers",
-                        "total_count": 45,
-                    },
-                }
-            ]
-        }
+        mock_client.get_all.return_value = [
+            {
+                "type": "List",
+                "id": "10",
+                "attributes": {
+                    "name": "Volunteers",
+                    "description": "All volunteers",
+                    "total_count": 45,
+                },
+            }
+        ]
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_lists")
         lists = await fn()
@@ -137,22 +133,20 @@ class TestListListsToolBody:
 
 class TestGetListMembersToolBody:
     async def test_get_list_members(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
-            "data": [
-                {
-                    "type": "Person",
-                    "id": "1001",
-                    "attributes": {
-                        "first_name": "Alice",
-                        "last_name": "Smith",
-                        "email_addresses": [],
-                        "phone_numbers": [],
-                        "membership": "Member",
-                        "status": "active",
-                    },
-                }
-            ]
-        }
+        mock_client.get_all.return_value = [
+            {
+                "type": "Person",
+                "id": "1001",
+                "attributes": {
+                    "first_name": "Alice",
+                    "last_name": "Smith",
+                    "email_addresses": [],
+                    "phone_numbers": [],
+                    "membership": "Member",
+                    "status": "active",
+                },
+            }
+        ]
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "get_list_members")
         members = await fn(list_id="42")
@@ -306,10 +300,10 @@ class TestUpdateAddressToolBody:
 
 class TestListPersonDetailsToolBody:
     async def test_list_person_details(self, mock_client: AsyncMock) -> None:
-        mock_client.get.side_effect = [
-            {"data": [{"type": "Email", "id": "2001", "attributes": {"address": "a@b.com", "location": "Home", "primary": True}}]},
-            {"data": [{"type": "PhoneNumber", "id": "3001", "attributes": {"number": "555", "carrier": None, "location": "Mobile", "primary": True}}]},
-            {"data": [{"type": "Address", "id": "4001", "attributes": {"street": "123 St", "city": "Town", "state": "IL", "zip": "60000", "location": "Home", "primary": True}}]},
+        mock_client.get_all.side_effect = [
+            [{"type": "Email", "id": "2001", "attributes": {"address": "a@b.com", "location": "Home", "primary": True}}],
+            [{"type": "PhoneNumber", "id": "3001", "attributes": {"number": "555", "carrier": None, "location": "Mobile", "primary": True}}],
+            [{"type": "Address", "id": "4001", "attributes": {"street": "123 St", "city": "Town", "state": "IL", "zip": "60000", "location": "Home", "primary": True}}],
         ]
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_person_details")
@@ -332,9 +326,9 @@ class TestAddNoteToolBody:
 
 class TestListNotesToolBody:
     async def test_list_notes(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
-            "data": [{"type": "Note", "id": "5001", "attributes": {"note": "A note.", "created_at": "2026-04-13T10:00:00Z", "note_category_id": "100"}}]
-        }
+        mock_client.get_all.return_value = [
+            {"type": "Note", "id": "5001", "attributes": {"note": "A note.", "created_at": "2026-04-13T10:00:00Z", "note_category_id": "100"}}
+        ]
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_notes")
         notes = await fn(person_id="1001")
@@ -371,9 +365,9 @@ class TestUpdatePhoneNumberToolBody:
 
 class TestListWorkflowsToolBody:
     async def test_list_workflows(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
-            "data": [{"type": "Workflow", "id": "7001", "attributes": {"name": "New Member Follow-up", "completed_card_count": 12, "ready_card_count": 3, "total_cards_count": 15}}]
-        }
+        mock_client.get_all.return_value = [
+            {"type": "Workflow", "id": "7001", "attributes": {"name": "New Member Follow-up", "completed_card_count": 12, "ready_card_count": 3, "total_cards_count": 15}}
+        ]
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_workflows")
         workflows = await fn()

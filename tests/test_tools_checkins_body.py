@@ -44,11 +44,9 @@ def make_mcp():
 
 class TestListCheckinEventsToolBody:
     async def test_list_events(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {
-            "data": [
-                {"type": "Event", "id": "101", "attributes": {"name": "Sunday Morning", "frequency": "weekly", "created_at": "2025-01-01T00:00:00Z", "archived_at": None}}
-            ]
-        }
+        mock_client.get_all.return_value = [
+            {"type": "Event", "id": "101", "attributes": {"name": "Sunday Morning", "frequency": "weekly", "created_at": "2025-01-01T00:00:00Z", "archived_at": None}}
+        ]
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_checkin_events")
         events = await fn()

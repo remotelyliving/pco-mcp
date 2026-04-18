@@ -15,7 +15,7 @@ class CalendarAPI:
         end_date: str | None = None,
         featured_only: bool = False,
     ) -> list[dict[str, Any]]:
-        """List calendar events. Defaults to future events, capped at 200."""
+        """List calendar events. Defaults to future events."""
         params: dict[str, Any] = {"order": "starts_at"}
         if featured_only:
             params["filter"] = "featured,future"
@@ -25,24 +25,18 @@ class CalendarAPI:
             params["where[starts_at][gte]"] = start_date
         if end_date:
             params["where[starts_at][lte]"] = end_date
-        all_events = await self._client.get_all(
-            "/calendar/v2/events", params=params, max_pages=8,
-        )
+        all_events = await self._client.get_all("/calendar/v2/events", params=params)
         return [self._simplify_event(e) for e in all_events]
 
     async def get_event_detail(self, event_id: str) -> dict[str, Any]:
         """Get full event detail with instances and resource bookings."""
         base = f"/calendar/v2/events/{event_id}"
         event_result = await self._client.get(base)
-        instances_result = await self._client.get(f"{base}/event_instances")
-        resources_result = await self._client.get(f"{base}/event_resource_requests")
+        instances = await self._client.get_all(f"{base}/event_instances")
+        resources = await self._client.get_all(f"{base}/event_resource_requests")
         event = self._simplify_event(event_result["data"])
-        event["instances"] = [
-            self._simplify_instance(i) for i in instances_result.get("data", [])
-        ]
-        event["resources"] = [
-            self._simplify_resource(r) for r in resources_result.get("data", [])
-        ]
+        event["instances"] = [self._simplify_instance(i) for i in instances]
+        event["resources"] = [self._simplify_resource(r) for r in resources]
         return event
 
     def _simplify_event(self, raw: dict[str, Any]) -> dict[str, Any]:

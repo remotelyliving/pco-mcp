@@ -22,17 +22,17 @@ def mock_client() -> PCOClient:
 
 class TestSearchPeople:
     async def test_search_by_name(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("search_people.json")
+        mock_client.get_all.return_value = load_fixture("search_people.json")["data"]
         api = PeopleAPI(mock_client)
         results = await api.search_people(name="Alice")
-        mock_client.get.assert_called_once()
-        call_args = mock_client.get.call_args
+        mock_client.get_all.assert_called_once()
+        call_args = mock_client.get_all.call_args
         assert "/people/v2/people" in call_args.args[0]
         assert len(results) == 2
         assert results[0]["first_name"] == "Alice"
 
     async def test_search_returns_simplified_records(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("search_people.json")
+        mock_client.get_all.return_value = load_fixture("search_people.json")["data"]
         api = PeopleAPI(mock_client)
         results = await api.search_people(name="Alice")
         record = results[0]
@@ -54,7 +54,7 @@ class TestGetPerson:
 
 class TestListLists:
     async def test_returns_lists(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_lists.json")
+        mock_client.get_all.return_value = load_fixture("list_lists.json")["data"]
         api = PeopleAPI(mock_client)
         lists = await api.list_lists()
         assert len(lists) == 2
@@ -80,7 +80,7 @@ class TestSimplifyPersonIncludesBirthdateGender:
 
 class TestGetPersonBlockouts:
     async def test_returns_blockouts(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("get_person_blockouts.json")
+        mock_client.get_all.return_value = load_fixture("get_person_blockouts.json")["data"]
         api = PeopleAPI(mock_client)
         blockouts = await api.get_person_blockouts("1001")
         assert len(blockouts) == 2
@@ -89,13 +89,13 @@ class TestGetPersonBlockouts:
         assert blockouts[1]["repeat_frequency"] == "weekly"
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("get_person_blockouts.json")
+        mock_client.get_all.return_value = load_fixture("get_person_blockouts.json")["data"]
         api = PeopleAPI(mock_client)
         await api.get_person_blockouts("1001")
-        mock_client.get.assert_called_once_with("/people/v2/people/1001/blockouts")
+        mock_client.get_all.assert_called_once_with("/people/v2/people/1001/blockouts")
 
     async def test_blockout_has_expected_fields(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("get_person_blockouts.json")
+        mock_client.get_all.return_value = load_fixture("get_person_blockouts.json")["data"]
         api = PeopleAPI(mock_client)
         blockouts = await api.get_person_blockouts("1001")
         b = blockouts[0]
@@ -106,7 +106,7 @@ class TestGetPersonBlockouts:
         assert "repeat_frequency" in b
 
     async def test_returns_empty_list_when_no_blockouts(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = {"data": [], "meta": {"total_count": 0, "count": 0}}
+        mock_client.get_all.return_value = []
         api = PeopleAPI(mock_client)
         blockouts = await api.get_person_blockouts("9999")
         assert blockouts == []
@@ -243,10 +243,10 @@ class TestUpdateAddress:
 
 class TestGetPersonDetails:
     async def test_returns_unified_contact_details(self, mock_client: AsyncMock) -> None:
-        mock_client.get.side_effect = [
-            load_fixture("list_emails.json"),
-            load_fixture("list_phone_numbers.json"),
-            load_fixture("list_addresses.json"),
+        mock_client.get_all.side_effect = [
+            load_fixture("list_emails.json")["data"],
+            load_fixture("list_phone_numbers.json")["data"],
+            load_fixture("list_addresses.json")["data"],
         ]
         api = PeopleAPI(mock_client)
         details = await api.get_person_details("1001")
@@ -258,15 +258,15 @@ class TestGetPersonDetails:
         assert details["addresses"][0]["city"] == "Springfield"
 
     async def test_calls_three_endpoints(self, mock_client: AsyncMock) -> None:
-        mock_client.get.side_effect = [
-            load_fixture("list_emails.json"),
-            load_fixture("list_phone_numbers.json"),
-            load_fixture("list_addresses.json"),
+        mock_client.get_all.side_effect = [
+            load_fixture("list_emails.json")["data"],
+            load_fixture("list_phone_numbers.json")["data"],
+            load_fixture("list_addresses.json")["data"],
         ]
         api = PeopleAPI(mock_client)
         await api.get_person_details("1001")
-        assert mock_client.get.call_count == 3
-        paths = [c.args[0] for c in mock_client.get.call_args_list]
+        assert mock_client.get_all.call_count == 3
+        paths = [c.args[0] for c in mock_client.get_all.call_args_list]
         assert any("/emails" in p for p in paths)
         assert any("/phone_numbers" in p for p in paths)
         assert any("/addresses" in p for p in paths)
@@ -301,7 +301,7 @@ class TestAddNote:
 
 class TestGetNotes:
     async def test_returns_notes_list(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_notes.json")
+        mock_client.get_all.return_value = load_fixture("list_notes.json")["data"]
         api = PeopleAPI(mock_client)
         notes = await api.get_notes("1001")
         assert len(notes) == 2
@@ -309,10 +309,10 @@ class TestGetNotes:
         assert notes[1]["id"] == "5002"
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_notes.json")
+        mock_client.get_all.return_value = load_fixture("list_notes.json")["data"]
         api = PeopleAPI(mock_client)
         await api.get_notes("1001")
-        call_path = mock_client.get.call_args.args[0]
+        call_path = mock_client.get_all.call_args.args[0]
         assert "1001" in call_path
         assert "/notes" in call_path
 
@@ -377,7 +377,7 @@ class TestUpdatePhoneNumber:
 
 class TestGetWorkflows:
     async def test_returns_workflows(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_workflows.json")
+        mock_client.get_all.return_value = load_fixture("list_workflows.json")["data"]
         api = PeopleAPI(mock_client)
         workflows = await api.get_workflows()
         assert len(workflows) == 2
@@ -386,10 +386,10 @@ class TestGetWorkflows:
         assert workflows[1]["name"] == "Baptism Prep"
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get.return_value = load_fixture("list_workflows.json")
+        mock_client.get_all.return_value = load_fixture("list_workflows.json")["data"]
         api = PeopleAPI(mock_client)
         await api.get_workflows()
-        call_path = mock_client.get.call_args.args[0]
+        call_path = mock_client.get_all.call_args.args[0]
         assert "/workflows" in call_path
 
 
