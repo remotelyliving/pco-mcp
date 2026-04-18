@@ -83,17 +83,24 @@ class CalendarAPI:
         rels = raw.get("relationships", {})
         owner_ref = rels.get("owner", {}).get("data")
         if owner_ref and included_index:
-            owner = included_index.get((owner_ref["type"], owner_ref["id"]))
-            if owner:
-                oattrs = owner.get("attributes", {})
-                simplified["owner_name"] = (
-                    f"{oattrs.get('first_name', '')} {oattrs.get('last_name', '')}".strip()
-                )
+            owner_type = owner_ref.get("type")
+            owner_id = owner_ref.get("id")
+            if owner_type and owner_id:
+                owner = included_index.get((owner_type, owner_id))
+                if owner:
+                    oattrs = owner.get("attributes", {})
+                    simplified["owner_name"] = (
+                        f"{oattrs.get('first_name', '')} {oattrs.get('last_name', '')}".strip()
+                    )
         instance_refs = rels.get("event_instances", {}).get("data") or []
         if instance_refs and included_index:
             instances = []
             for ref in instance_refs:
-                inst = included_index.get((ref["type"], ref["id"]))
+                ref_type = ref.get("type")
+                ref_id = ref.get("id")
+                if not (ref_type and ref_id):
+                    continue
+                inst = included_index.get((ref_type, ref_id))
                 if inst:
                     instances.append(self._simplify_instance(inst))
             if instances:

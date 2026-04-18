@@ -657,21 +657,25 @@ class ServicesAPI:
         if person_ref:
             simplified["person_id"] = person_ref.get("id")
             if included_index:
-                person = included_index.get((person_ref["type"], person_ref["id"]))
-                if person:
-                    pattrs = person.get("attributes", {})
-                    simplified["person_name"] = (
-                        f"{pattrs.get('first_name', '')} {pattrs.get('last_name', '')}".strip()
-                    )
+                person_type = person_ref.get("type")
+                person_id = person_ref.get("id")
+                if person_type and person_id:
+                    person = included_index.get((person_type, person_id))
+                    if person:
+                        pattrs = person.get("attributes", {})
+                        simplified["person_name"] = (
+                            f"{pattrs.get('first_name', '')} {pattrs.get('last_name', '')}".strip()
+                        )
         position_ref = rels.get("team_position", {}).get("data")
         if position_ref:
             simplified["team_position_id"] = position_ref.get("id")
             if included_index:
-                position = included_index.get(
-                    (position_ref["type"], position_ref["id"])
-                )
-                if position:
-                    simplified["team_position_name"] = position.get("attributes", {}).get("name")
+                position_type = position_ref.get("type")
+                position_id = position_ref.get("id")
+                if position_type and position_id:
+                    position = included_index.get((position_type, position_id))
+                    if position:
+                        simplified["team_position_name"] = position.get("attributes", {}).get("name")
         return simplified
 
     def _simplify_item(self, raw: dict[str, Any]) -> dict[str, Any]:

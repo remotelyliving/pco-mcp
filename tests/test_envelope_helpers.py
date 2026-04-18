@@ -72,3 +72,48 @@ class TestMergeFilters:
     def test_adds_new_keys_from_overrides(self) -> None:
         result = merge_filters({"filter": "future"}, {"where[starts_at][gte]": "2025-01-01"})
         assert result == {"filter": "future", "where[starts_at][gte]": "2025-01-01"}
+
+
+class TestIndexIncluded:
+    def test_builds_type_id_map(self) -> None:
+        from pco_mcp.pco._envelope import index_included
+        included = [
+            {"type": "Person", "id": "1", "attributes": {"name": "Alice"}},
+            {"type": "Person", "id": "2", "attributes": {"name": "Bob"}},
+            {"type": "TeamPosition", "id": "1", "attributes": {"name": "Vocalist"}},
+        ]
+        idx = index_included(included)
+        assert idx[("Person", "1")]["attributes"]["name"] == "Alice"
+        assert idx[("Person", "2")]["attributes"]["name"] == "Bob"
+        assert idx[("TeamPosition", "1")]["attributes"]["name"] == "Vocalist"
+
+    def test_empty_list_returns_empty_dict(self) -> None:
+        from pco_mcp.pco._envelope import index_included
+        assert index_included([]) == {}
+
+    def test_skips_records_missing_type(self) -> None:
+        from pco_mcp.pco._envelope import index_included
+        included = [
+            {"id": "1", "attributes": {}},  # no type
+            {"type": "Person", "id": "2", "attributes": {}},
+        ]
+        idx = index_included(included)
+        assert idx == {("Person", "2"): included[1]}
+
+    def test_skips_records_missing_id(self) -> None:
+        from pco_mcp.pco._envelope import index_included
+        included = [
+            {"type": "Person", "attributes": {}},  # no id
+            {"type": "Person", "id": "2", "attributes": {}},
+        ]
+        idx = index_included(included)
+        assert idx == {("Person", "2"): included[1]}
+
+    def test_last_entry_wins_on_duplicate(self) -> None:
+        from pco_mcp.pco._envelope import index_included
+        included = [
+            {"type": "Person", "id": "1", "attributes": {"name": "Old"}},
+            {"type": "Person", "id": "1", "attributes": {"name": "New"}},
+        ]
+        idx = index_included(included)
+        assert idx[("Person", "1")]["attributes"]["name"] == "New"

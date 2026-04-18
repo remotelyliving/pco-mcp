@@ -50,5 +50,14 @@ def merge_filters(
 
 
 def index_included(included: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
-    """Build a (type, id) -> record lookup from a JSON:API `included` array."""
-    return {(rec["type"], rec["id"]): rec for rec in included}
+    """Build a (type, id) -> record lookup from a JSON:API `included` array.
+
+    Records missing `type` or `id` are silently skipped.
+    """
+    out: dict[tuple[str, str], dict[str, Any]] = {}
+    for rec in included:
+        t = rec.get("type")
+        i = rec.get("id")
+        if t and i:
+            out[(t, i)] = rec
+    return out
