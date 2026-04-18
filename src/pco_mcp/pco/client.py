@@ -11,14 +11,16 @@ logger = logging.getLogger(__name__)
 class PagedResult:
     """Result of a paginated PCO fetch. Behaves list-like for backwards compat.
 
-    - items: raw JSON:API records collected across pages
+    - items: raw JSON:API records (top-level data array, collected across pages)
     - total_count: from meta.total_count when PCO supplies it (may be None)
     - truncated: True if max_pages cap fired while more data was available
+    - included: flat list of records from the JSON:API 'included' key (may be empty)
     """
 
     items: list[Any] = field(default_factory=list)
     total_count: int | None = None
     truncated: bool = False
+    included: list[Any] = field(default_factory=list)
 
     def __iter__(self):
         return iter(self.items)
@@ -131,34 +133,36 @@ class PCOClient:
     ) -> PagedResult:
         """Fetch all pages of a paginated PCO endpoint.
 
-        Returns a PagedResult dataclass carrying items + total_count + truncated.
-        PagedResult is list-like so callers can iterate/index it directly.
-        Uses per_page=100 (PCO's maximum) unless the caller overrides it.
+        Returns a PagedResult dataclass carrying items + total_count + truncated
+        + included. PagedResult is list-like so callers can iterate/index it
+        directly. Uses per_page=100 (PCO's maximum) unless the caller overrides.
         """
         items: list[Any] = []
+        included: list[Any] = []
         current_params: dict[str, Any] = dict(params or {})
         current_params.setdefault("per_page", 100)
         total_count: int | None = None
         for page_num in range(max_pages):
             result = await self.get(path, params=current_params)
             items.extend(result.get("data", []))
+            included.extend(result.get("included", []))
             meta = result.get("meta") or {}
             if "total_count" in meta:
                 total_count = meta["total_count"]
             next_link = result.get("links", {}).get("next")
             if not next_link:
-                return PagedResult(items=items, total_count=total_count, truncated=False)
+                return PagedResult(items=items, total_count=total_count, truncated=False, included=included)
             next_offset = meta.get("next", {}).get("offset")
             if next_offset is None:
-                return PagedResult(items=items, total_count=total_count, truncated=False)
+                return PagedResult(items=items, total_count=total_count, truncated=False, included=included)
             current_params["offset"] = next_offset
             if page_num == max_pages - 1:
                 logger.warning(
                     "get_all truncated at max_pages=%d for %s (fetched %d, total_count=%s)",
                     max_pages, path, len(items), total_count,
                 )
-                return PagedResult(items=items, total_count=total_count, truncated=True)
-        return PagedResult(items=items, total_count=total_count, truncated=False)
+                return PagedResult(items=items, total_count=total_count, truncated=True, included=included)
+        return PagedResult(items=items, total_count=total_count, truncated=False, included=included)
 
     def _check_response(self, response: httpx.Response) -> None:
         """Check response status and raise appropriate errors."""

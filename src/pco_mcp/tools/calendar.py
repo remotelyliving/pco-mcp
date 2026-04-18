@@ -13,11 +13,18 @@ def register_calendar_tools(mcp: FastMCP) -> None:
         start_date: str | None = None,
         end_date: str | None = None,
         featured_only: bool = False,
-    ) -> list[dict[str, Any]]:
-        """List upcoming calendar events within a date range.
+        include_past: bool = False,
+    ) -> dict[str, Any]:
+        """List calendar events. Returns `{items, meta: {total_count, truncated, filters_applied}}`.
 
-        Defaults to future events. Optionally filter to featured events only.
-        Returns event name, dates, recurrence, and visibility.
+        By default returns ONLY future non-featured events ordered by start
+        date. Pass `include_past=True` to include past events. Pass
+        `start_date`/`end_date` (ISO date strings) to scope the window.
+        `start_date`/`end_date` do NOT remove the future-only default on
+        their own — pair them with `include_past=True` to search history.
+
+        `meta.filters_applied` reports exactly what scoping was sent to PCO
+        so you can tell an empty result from a narrow filter.
         """
         from pco_mcp.tools._context import get_calendar_api, safe_tool_call
 
@@ -27,6 +34,7 @@ def register_calendar_tools(mcp: FastMCP) -> None:
                 start_date=start_date,
                 end_date=end_date,
                 featured_only=featured_only,
+                include_past=include_past,
             )
         )
 
@@ -35,7 +43,8 @@ def register_calendar_tools(mcp: FastMCP) -> None:
         """Get full details for a calendar event including occurrences
         and resource/room bookings.
 
-        Shows what rooms and equipment are booked for the event.
+        Single-resource call — returns a curated dict (not an envelope).
+        Includes all event instances and all resource requests for the event.
         """
         from pco_mcp.tools._context import get_calendar_api, safe_tool_call
 

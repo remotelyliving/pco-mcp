@@ -43,23 +43,51 @@ def make_mcp():
 
 
 class TestListCalendarEventsToolBody:
-    async def test_list_events(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {"type": "Event", "id": "201", "attributes": {"name": "Easter Service", "description": "Easter.", "starts_at": "2026-04-20T09:00:00Z", "ends_at": "2026-04-20T11:00:00Z", "recurrence": None, "visible_in_church_center": True}}
-        ]
+    async def test_list_events_returns_envelope(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {
+                    "type": "Event",
+                    "id": "201",
+                    "attributes": {
+                        "name": "Easter Service",
+                        "description": "Easter.",
+                        "starts_at": "2026-04-20T09:00:00Z",
+                        "ends_at": "2026-04-20T11:00:00Z",
+                        "recurrence": None,
+                        "visible_in_church_center": True,
+                    },
+                    "relationships": {},
+                }
+            ],
+            total_count=1,
+            truncated=False,
+        )
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_calendar_events")
-        events = await fn()
-        assert len(events) == 1
-        assert events[0]["name"] == "Easter Service"
+        result = await fn()
+        assert result["items"][0]["name"] == "Easter Service"
+        assert result["meta"]["total_count"] == 1
+        assert result["meta"]["truncated"] is False
+        assert result["meta"]["filters_applied"].get("filter") == "future"
+
+    async def test_list_events_include_past(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(items=[], total_count=0, truncated=False)
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "list_calendar_events")
+        result = await fn(include_past=True)
+        assert "filter" not in result["meta"]["filters_applied"]
 
 
 class TestGetEventDetailsToolBody:
     async def test_get_event_details(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
         mock_client.get.return_value = {"data": {"type": "Event", "id": "201", "attributes": {"name": "Easter", "description": "", "starts_at": "2026-04-20T09:00:00Z", "ends_at": "2026-04-20T11:00:00Z", "recurrence": None, "visible_in_church_center": True}}}
         mock_client.get_all.side_effect = [
-            [{"type": "EventInstance", "id": "301", "attributes": {"starts_at": "2026-04-20T09:00:00Z", "ends_at": "2026-04-20T11:00:00Z", "location": "Sanctuary"}}],
-            [{"type": "EventResourceRequest", "id": "401", "attributes": {"name": "Sanctuary", "resource_type": "Room", "approval_status": "approved"}}],
+            PagedResult(items=[{"type": "EventInstance", "id": "301", "attributes": {"starts_at": "2026-04-20T09:00:00Z", "ends_at": "2026-04-20T11:00:00Z", "location": "Sanctuary"}}]),
+            PagedResult(items=[{"type": "EventResourceRequest", "id": "401", "attributes": {"name": "Sanctuary", "resource_type": "Room", "approval_status": "approved"}}]),
         ]
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "get_event_details")
