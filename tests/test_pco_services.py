@@ -311,17 +311,27 @@ class TestRemoveTeamMember:
 
 
 class TestGetSongScheduleHistory:
-    async def test_returns_schedule_records(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("get_song_schedule_history.json")["data"]
+    async def test_returns_envelope(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("get_song_schedule_history.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = ServicesAPI(mock_client)
-        history = await api.get_song_schedule_history("1001")
-        assert len(history) == 2
-        assert history[0]["service_type_name"] == "Sunday Morning"
-        assert history[0]["key_name"] == "G"
-        assert history[1]["key_name"] == "A"
+        result = await api.get_song_schedule_history("1001")
+        assert "items" in result
+        assert "meta" in result
+        assert result["meta"]["total_count"] == 2
+        assert result["items"][0]["service_type_name"] == "Sunday Morning"
+        assert result["items"][0]["key_name"] == "G"
+        assert result["items"][1]["key_name"] == "A"
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("get_song_schedule_history.json")["data"]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("get_song_schedule_history.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = ServicesAPI(mock_client)
         await api.get_song_schedule_history("1001")
         call_path = mock_client.get_all.call_args.args[0]
@@ -329,27 +339,41 @@ class TestGetSongScheduleHistory:
         assert "song_schedules" in call_path
 
     async def test_record_has_expected_fields(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("get_song_schedule_history.json")["data"]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("get_song_schedule_history.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = ServicesAPI(mock_client)
-        history = await api.get_song_schedule_history("1001")
-        record = history[0]
+        result = await api.get_song_schedule_history("1001")
+        record = result["items"][0]
         assert "plan_dates" in record
         assert "plan_sort_date" in record
         assert "arrangement_name" in record
 
 
 class TestListSongArrangements:
-    async def test_returns_arrangements(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("list_song_arrangements.json")["data"]
+    async def test_returns_envelope(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("list_song_arrangements.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = ServicesAPI(mock_client)
-        arrangements = await api.list_song_arrangements("1001")
-        assert len(arrangements) == 2
-        assert arrangements[0]["name"] == "Standard"
-        assert arrangements[0]["bpm"] == 74
-        assert arrangements[1]["name"] == "Acoustic"
+        result = await api.list_song_arrangements("1001")
+        assert "items" in result
+        assert "meta" in result
+        assert result["meta"]["total_count"] == 2
+        assert result["items"][0]["name"] == "Standard"
+        assert result["items"][0]["bpm"] == 74
+        assert result["items"][1]["name"] == "Acoustic"
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("list_song_arrangements.json")["data"]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("list_song_arrangements.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = ServicesAPI(mock_client)
         await api.list_song_arrangements("1001")
         call_path = mock_client.get_all.call_args.args[0]
@@ -357,10 +381,14 @@ class TestListSongArrangements:
         assert "arrangements" in call_path
 
     async def test_arrangement_has_expected_fields(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("list_song_arrangements.json")["data"]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("list_song_arrangements.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = ServicesAPI(mock_client)
-        arrangements = await api.list_song_arrangements("1001")
-        arr = arrangements[0]
+        result = await api.list_song_arrangements("1001")
+        arr = result["items"][0]
         assert "id" in arr
         assert "meter" in arr
         assert "length" in arr
@@ -368,17 +396,27 @@ class TestListSongArrangements:
 
 
 class TestListPlanTemplates:
-    async def test_returns_templates(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("list_plan_templates.json")["data"]
+    async def test_returns_envelope(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("list_plan_templates.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = ServicesAPI(mock_client)
-        templates = await api.list_plan_templates("201")
-        assert len(templates) == 2
-        assert templates[0]["name"] == "Standard Sunday"
-        assert templates[0]["item_count"] == 8
-        assert templates[1]["name"] == "Holiday Service"
+        result = await api.list_plan_templates("201")
+        assert "items" in result
+        assert "meta" in result
+        assert result["meta"]["total_count"] == 2
+        assert result["items"][0]["name"] == "Standard Sunday"
+        assert result["items"][0]["item_count"] == 8
+        assert result["items"][1]["name"] == "Holiday Service"
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("list_plan_templates.json")["data"]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("list_plan_templates.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = ServicesAPI(mock_client)
         await api.list_plan_templates("201")
         call_path = mock_client.get_all.call_args.args[0]
@@ -387,18 +425,28 @@ class TestListPlanTemplates:
 
 
 class TestGetNeededPositions:
-    async def test_returns_needed_positions(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("get_needed_positions.json")["data"]
+    async def test_returns_envelope(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("get_needed_positions.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = ServicesAPI(mock_client)
-        positions = await api.get_needed_positions("201", "301")
-        assert len(positions) == 2
-        assert positions[0]["team_position_name"] == "Lead Vocalist"
-        assert positions[0]["quantity"] == 1
-        assert positions[1]["team_position_name"] == "Sound Tech"
-        assert positions[1]["quantity"] == 2
+        result = await api.get_needed_positions("201", "301")
+        assert "items" in result
+        assert "meta" in result
+        assert result["meta"]["total_count"] == 2
+        assert result["items"][0]["team_position_name"] == "Lead Vocalist"
+        assert result["items"][0]["quantity"] == 1
+        assert result["items"][1]["team_position_name"] == "Sound Tech"
+        assert result["items"][1]["quantity"] == 2
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("get_needed_positions.json")["data"]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("get_needed_positions.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = ServicesAPI(mock_client)
         await api.get_needed_positions("201", "301")
         call_path = mock_client.get_all.call_args.args[0]
@@ -407,10 +455,14 @@ class TestGetNeededPositions:
         assert "needed_positions" in call_path
 
     async def test_position_has_scheduled_to_field(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("get_needed_positions.json")["data"]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("get_needed_positions.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = ServicesAPI(mock_client)
-        positions = await api.get_needed_positions("201", "301")
-        assert "scheduled_to" in positions[0]
+        result = await api.get_needed_positions("201", "301")
+        assert "scheduled_to" in result["items"][0]
 
 
 class TestGetSong:
@@ -628,16 +680,26 @@ class TestCreateAttachment:
 
 
 class TestListAttachments:
-    async def test_returns_attachments(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("list_attachments.json")["data"]
+    async def test_returns_envelope(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("list_attachments.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = ServicesAPI(mock_client)
-        attachments = await api.list_attachments("4001", "1001")
-        assert len(attachments) == 2
-        assert attachments[0]["filename"] == "chord-chart.pdf"
-        assert attachments[1]["content_type"] == "audio/mpeg"
+        result = await api.list_attachments("4001", "1001")
+        assert "items" in result
+        assert "meta" in result
+        assert result["meta"]["total_count"] == 2
+        assert result["items"][0]["filename"] == "chord-chart.pdf"
+        assert result["items"][1]["content_type"] == "audio/mpeg"
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("list_attachments.json")["data"]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("list_attachments.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = ServicesAPI(mock_client)
         await api.list_attachments("4001", "1001")
         call_path = mock_client.get_all.call_args.args[0]
@@ -693,20 +755,32 @@ class TestCreateMedia:
 
 
 class TestListMedia:
-    async def test_returns_media_list(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("list_media.json")["data"]
+    async def test_returns_envelope(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("list_media.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = ServicesAPI(mock_client)
-        media = await api.list_media()
-        assert len(media) == 2
-        assert media[0]["title"] == "Worship Background"
-        assert media[1]["media_type"] == "countdown"
+        result = await api.list_media()
+        assert "items" in result
+        assert "meta" in result
+        assert result["meta"]["total_count"] == 2
+        assert result["meta"]["filters_applied"] == {}
+        assert result["items"][0]["title"] == "Worship Background"
+        assert result["items"][1]["media_type"] == "countdown"
 
     async def test_filters_by_media_type(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("list_media.json")["data"]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("list_media.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = ServicesAPI(mock_client)
-        await api.list_media(media_type="image")
+        result = await api.list_media(media_type="image")
         params = mock_client.get_all.call_args.kwargs.get("params", {})
         assert params.get("where[media_type]") == "image"
+        assert result["meta"]["filters_applied"].get("where[media_type]") == "image"
 
 
 class TestUpdateMedia:
@@ -747,19 +821,38 @@ class TestGetCCLIReporting:
 
 
 class TestFlagMissingCCLI:
-    async def test_returns_songs_without_ccli(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = (
+    async def test_returns_envelope_style_dict(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        combined = (
             load_fixture("list_songs_page1.json")["data"]
             + load_fixture("list_songs_page2.json")["data"]
+        )
+        mock_client.get_all.return_value = PagedResult(
+            items=combined, total_count=4, truncated=False,
         )
         api = ServicesAPI(mock_client)
         result = await api.flag_missing_ccli()
         assert result["total_scanned"] == 4
         assert result["total_missing"] == 2
-        missing_titles = [s["title"] for s in result["songs"]]
+        missing_titles = [s["title"] for s in result["items"]]
         assert "How Great Is Our God" in missing_titles
         assert "Custom Song" in missing_titles
         assert "Amazing Grace" not in missing_titles
+        assert result["meta"]["total_count"] == 4
+        assert result["meta"]["truncated"] is False
+        assert result["meta"]["filters_applied"] == {}
+
+    async def test_truncated_flag_propagates(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {"type": "Song", "id": "1", "attributes": {"title": "Missing", "ccli_number": None}},
+            ],
+            total_count=1, truncated=True,
+        )
+        api = ServicesAPI(mock_client)
+        result = await api.flag_missing_ccli()
+        assert result["meta"]["truncated"] is True
 
 
 

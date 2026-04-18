@@ -116,6 +116,7 @@ class TestGetUpcomingPlansToolBody:
 
 class TestGetPlanDetailsToolBody:
     async def test_get_plan_details(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
         mock_client.get.return_value = {
             "data": {
                 "type": "Plan",
@@ -129,7 +130,10 @@ class TestGetPlanDetailsToolBody:
                 },
             }
         }
-        mock_client.get_all.return_value = []
+        mock_client.get_all.side_effect = [
+            PagedResult(items=[], total_count=0, truncated=False),
+            PagedResult(items=[], total_count=0, truncated=False),
+        ]
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "get_plan_details")
         plan = await fn(service_type_id="201", plan_id="301")
@@ -137,6 +141,8 @@ class TestGetPlanDetailsToolBody:
         assert plan["title"] == "Easter Service"
         assert "items" in plan
         assert "team_members" in plan
+        assert isinstance(plan["items"], list)
+        assert "meta" not in plan  # single-resource, not envelope
 
 
 class TestListSongsToolBody:
@@ -436,23 +442,28 @@ class TestCreateAttachmentToolBody:
 
 class TestListAttachmentsToolBody:
     async def test_list_attachments(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {
-                "type": "Attachment",
-                "id": "5001",
-                "attributes": {
-                    "filename": "chart.pdf",
-                    "content_type": "application/pdf",
-                    "file_size": 1234,
-                    "url": "https://cdn.example.com/chart.pdf",
-                },
-            }
-        ]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {
+                    "type": "Attachment",
+                    "id": "5001",
+                    "attributes": {
+                        "filename": "chart.pdf",
+                        "content_type": "application/pdf",
+                        "file_size": 1234,
+                        "url": "https://cdn.example.com/chart.pdf",
+                    },
+                }
+            ],
+            total_count=1, truncated=False,
+        )
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_attachments")
-        attachments = await fn(song_id="4001", arrangement_id="1001")
-        assert len(attachments) == 1
-        assert attachments[0]["filename"] == "chart.pdf"
+        result = await fn(song_id="4001", arrangement_id="1001")
+        assert "items" in result
+        assert result["items"][0]["filename"] == "chart.pdf"
+        assert result["meta"]["total_count"] == 1
 
 
 class TestCreateMediaToolBody:
@@ -504,23 +515,38 @@ class TestCreateMediaToolBody:
 
 class TestListMediaToolBody:
     async def test_list_media(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {
-                "type": "Media",
-                "id": "6001",
-                "attributes": {
-                    "title": "Background",
-                    "media_type": "image",
-                    "thumbnail_url": None,
-                    "creator_name": "Admin",
-                },
-            }
-        ]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {
+                    "type": "Media",
+                    "id": "6001",
+                    "attributes": {
+                        "title": "Background",
+                        "media_type": "image",
+                        "thumbnail_url": None,
+                        "creator_name": "Admin",
+                    },
+                }
+            ],
+            total_count=1, truncated=False,
+        )
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_media")
-        media = await fn()
-        assert len(media) == 1
-        assert media[0]["title"] == "Background"
+        result = await fn()
+        assert "items" in result
+        assert result["items"][0]["title"] == "Background"
+        assert result["meta"]["filters_applied"] == {}
+
+    async def test_list_media_with_filter(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[], total_count=0, truncated=False,
+        )
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "list_media")
+        result = await fn(media_type="background")
+        assert result["meta"]["filters_applied"].get("where[media_type]") == "background"
 
 
 class TestUpdateMediaToolBody:
@@ -565,56 +591,66 @@ class TestGetCCLIReportingToolBody:
 
 class TestGetSongUsageReportToolBody:
     async def test_get_song_usage_report(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {
-                "type": "SongSchedule",
-                "id": "8001",
-                "attributes": {
-                    "plan_dates": "March 30, 2026",
-                    "plan_sort_date": "2026-03-30T09:00:00Z",
-                    "service_type_name": "Sunday Morning",
-                    "arrangement_name": "Standard",
-                    "key_name": "G",
-                },
-            }
-        ]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {
+                    "type": "SongSchedule",
+                    "id": "8001",
+                    "attributes": {
+                        "plan_dates": "March 30, 2026",
+                        "plan_sort_date": "2026-03-30T09:00:00Z",
+                        "service_type_name": "Sunday Morning",
+                        "arrangement_name": "Standard",
+                        "key_name": "G",
+                    },
+                }
+            ],
+            total_count=1, truncated=False,
+        )
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "get_song_usage_report")
-        history = await fn(song_id="4001")
-        assert len(history) == 1
-        assert history[0]["service_type_name"] == "Sunday Morning"
+        result = await fn(song_id="4001")
+        assert "items" in result
+        assert result["items"][0]["service_type_name"] == "Sunday Morning"
 
 
 class TestFlagMissingCCLIToolBody:
     async def test_flag_missing_ccli(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {
-                "type": "Song",
-                "id": "4001",
-                "attributes": {
-                    "title": "Amazing Grace",
-                    "author": "John Newton",
-                    "ccli_number": 4669344,
-                    "last_scheduled_at": "2026-03-30T09:00:00Z",
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {
+                    "type": "Song",
+                    "id": "4001",
+                    "attributes": {
+                        "title": "Amazing Grace",
+                        "author": "John Newton",
+                        "ccli_number": 4669344,
+                        "last_scheduled_at": "2026-03-30T09:00:00Z",
+                    },
                 },
-            },
-            {
-                "type": "Song",
-                "id": "4002",
-                "attributes": {
-                    "title": "Missing CCLI Song",
-                    "author": "Unknown",
-                    "ccli_number": None,
-                    "last_scheduled_at": None,
+                {
+                    "type": "Song",
+                    "id": "4002",
+                    "attributes": {
+                        "title": "Missing CCLI Song",
+                        "author": "Unknown",
+                        "ccli_number": None,
+                        "last_scheduled_at": None,
+                    },
                 },
-            },
-        ]
+            ],
+            total_count=2, truncated=False,
+        )
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "flag_missing_ccli")
         result = await fn()
         assert result["total_scanned"] == 2
         assert result["total_missing"] == 1
-        assert result["songs"][0]["title"] == "Missing CCLI Song"
+        assert result["items"][0]["title"] == "Missing CCLI Song"
+        assert result["meta"]["total_count"] == 2
+        assert result["meta"]["truncated"] is False
 
 
 class TestCreateServiceTypeToolBody:

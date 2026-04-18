@@ -59,7 +59,13 @@ def register_services_tools(mcp: FastMCP) -> None:
     async def get_plan_details(service_type_id: str, plan_id: str) -> dict[str, Any]:
         """Get full details for a specific service plan.
 
-        Returns the plan with songs, items, team assignments, and times.
+        Returns a single-resource dict (NOT an envelope). Nested ``items``
+        and ``team_members`` are bare arrays embedded in the plan. Team
+        members come pre-flattened with ``person_id``, ``person_name``,
+        ``team_position_id``, and ``team_position_name``
+        (``include=person,team_position`` is hard-coded server-side). If
+        either internal paginated fetch hits the page cap, a warning is
+        logged but the call still succeeds.
         """
         from pco_mcp.tools._context import get_services_api, safe_tool_call
 
@@ -161,11 +167,12 @@ def register_services_tools(mcp: FastMCP) -> None:
         return await safe_tool_call(api.list_team_positions(team_id))
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def get_song_schedule_history(song_id: str) -> list[dict[str, Any]]:
+    async def get_song_schedule_history(song_id: str) -> dict[str, Any]:
         """See when a song was last scheduled.
 
-        Returns dates, service types, keys, and arrangements for past uses.
-        Useful for song rotation planning.
+        Returns an envelope ``{items, meta: {total_count, truncated,
+        filters_applied}}``. Each item has dates, service type, key, and
+        arrangement name for a past use. Useful for song rotation planning.
         """
         from pco_mcp.tools._context import get_services_api, safe_tool_call
 
@@ -173,18 +180,24 @@ def register_services_tools(mcp: FastMCP) -> None:
         return await safe_tool_call(api.get_song_schedule_history(song_id))
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def list_song_arrangements(song_id: str) -> list[dict[str, Any]]:
-        """List available arrangements (versions) of a song with BPM, meter, length, and notes."""
+    async def list_song_arrangements(song_id: str) -> dict[str, Any]:
+        """List available arrangements (versions) of a song.
+
+        Returns an envelope ``{items, meta}`` — each item has id, name, BPM,
+        meter, length, and notes. ``meta.total_count`` and ``meta.truncated``
+        reflect pagination state.
+        """
         from pco_mcp.tools._context import get_services_api, safe_tool_call
 
         api = get_services_api()
         return await safe_tool_call(api.list_song_arrangements(song_id))
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def list_plan_templates(service_type_id: str) -> list[dict[str, Any]]:
+    async def list_plan_templates(service_type_id: str) -> dict[str, Any]:
         """List saved plan templates for a service type.
 
-        Templates define standard service order and team needs.
+        Returns an envelope ``{items, meta}``. Templates define standard
+        service order and team needs.
         """
         from pco_mcp.tools._context import get_services_api, safe_tool_call
 
@@ -192,10 +205,12 @@ def register_services_tools(mcp: FastMCP) -> None:
         return await safe_tool_call(api.list_plan_templates(service_type_id))
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def get_needed_positions(service_type_id: str, plan_id: str) -> list[dict[str, Any]]:
+    async def get_needed_positions(service_type_id: str, plan_id: str) -> dict[str, Any]:
         """See unfilled team positions for a plan.
 
-        Shows which roles still need people assigned.
+        Returns an envelope ``{items, meta}``. Each item carries
+        ``team_position_name``, ``quantity`` still needed, and
+        ``scheduled_to``.
         """
         from pco_mcp.tools._context import get_services_api, safe_tool_call
 
@@ -445,8 +460,12 @@ def register_services_tools(mcp: FastMCP) -> None:
         )
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def list_attachments(song_id: str, arrangement_id: str) -> list[dict[str, Any]]:
-        """List file attachments on an arrangement (PDFs, audio files, etc.)."""
+    async def list_attachments(song_id: str, arrangement_id: str) -> dict[str, Any]:
+        """List file attachments on an arrangement (PDFs, audio files, etc.).
+
+        Returns an envelope ``{items, meta}``. Each item has filename,
+        content_type, file_size, and download url.
+        """
         from pco_mcp.tools._context import get_services_api, safe_tool_call
 
         api = get_services_api()
@@ -474,9 +493,14 @@ def register_services_tools(mcp: FastMCP) -> None:
         )
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def list_media(media_type: str | None = None) -> list[dict[str, Any]]:
+    async def list_media(media_type: str | None = None) -> dict[str, Any]:
         """List org-level media items (backgrounds, countdowns, videos).
-        Optionally filter by type."""
+
+        Returns an envelope ``{items, meta: {total_count, truncated,
+        filters_applied}}``. Pass ``media_type='background'`` (or
+        ``'countdown'``, ``'image'``, ``'video'``, ``'document'``) to filter;
+        the filter shows up in ``meta.filters_applied`` when applied.
+        """
         from pco_mcp.tools._context import get_services_api, safe_tool_call
 
         api = get_services_api()
@@ -511,10 +535,12 @@ def register_services_tools(mcp: FastMCP) -> None:
         return await safe_tool_call(api.get_ccli_reporting(service_type_id, plan_id, item_id))
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def get_song_usage_report(song_id: str) -> list[dict[str, Any]]:
+    async def get_song_usage_report(song_id: str) -> dict[str, Any]:
         """Get all dates a song was scheduled, with service type, key, and arrangement.
 
-        Useful for CCLI annual reporting — shows how many times a song was used.
+        Returns an envelope ``{items, meta}`` (same shape as
+        ``get_song_schedule_history``). Useful for CCLI annual reporting —
+        shows how many times a song was used.
         """
         from pco_mcp.tools._context import get_services_api, safe_tool_call
 
@@ -525,8 +551,18 @@ def register_services_tools(mcp: FastMCP) -> None:
     async def flag_missing_ccli() -> dict[str, Any]:
         """Scan the song library for songs missing CCLI numbers.
 
-        Returns a list of songs without CCLI numbers along with total counts.
-        Scans up to ~200 songs. Use update_song to fill in missing numbers.
+        Returns a composite dict::
+
+            {
+                "total_scanned": int,
+                "total_missing": int,
+                "items": [<song>, ...],              # only songs missing CCLI
+                "meta": {"total_count", "truncated", "filters_applied"}
+            }
+
+        The top-level ``items`` + ``meta`` follow the envelope convention so
+        truncation of the underlying song scan is surfaced consistently. Use
+        ``update_song`` to fill in missing CCLI numbers.
         """
         from pco_mcp.tools._context import get_services_api, safe_tool_call
 

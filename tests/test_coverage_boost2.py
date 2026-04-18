@@ -571,96 +571,112 @@ class TestListTeamPositionsToolBody:
 class TestGetSongScheduleHistoryToolBody:
     @pytest.mark.asyncio
     async def test_get_song_schedule_history(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {
-                "type": "SongSchedule",
-                "id": "1001",
-                "attributes": {
-                    "plan_dates": "March 30, 2026",
-                    "service_type_name": "Sunday Morning",
-                    "key_name": "A",
-                    "arrangement_name": "Default",
-                },
-            }
-        ]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {
+                    "type": "SongSchedule",
+                    "id": "1001",
+                    "attributes": {
+                        "plan_dates": "March 30, 2026",
+                        "service_type_name": "Sunday Morning",
+                        "key_name": "A",
+                        "arrangement_name": "Default",
+                    },
+                }
+            ],
+            total_count=1, truncated=False,
+        )
         mcp = make_services_mcp()
         fn = _get_tool_fn(mcp, "get_song_schedule_history")
         result = await fn(song_id="401")
-        assert len(result) == 1
-        assert result[0]["service_type_name"] == "Sunday Morning"
+        assert "items" in result
+        assert result["items"][0]["service_type_name"] == "Sunday Morning"
 
 
 @pytest.mark.usefixtures("setup_context")
 class TestListSongArrangementsToolBody:
     @pytest.mark.asyncio
     async def test_list_song_arrangements(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {
-                "type": "Arrangement",
-                "id": "600",
-                "attributes": {
-                    "name": "Default Arrangement",
-                    "bpm": 72,
-                    "meter": "4/4",
-                    "length": 240,
-                    "notes": "Original key",
-                    "updated_at": "2026-01-01T00:00:00Z",
-                },
-            }
-        ]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {
+                    "type": "Arrangement",
+                    "id": "600",
+                    "attributes": {
+                        "name": "Default Arrangement",
+                        "bpm": 72,
+                        "meter": "4/4",
+                        "length": 240,
+                        "notes": "Original key",
+                        "updated_at": "2026-01-01T00:00:00Z",
+                    },
+                }
+            ],
+            total_count=1, truncated=False,
+        )
         mcp = make_services_mcp()
         fn = _get_tool_fn(mcp, "list_song_arrangements")
         result = await fn(song_id="401")
-        assert len(result) == 1
-        assert result[0]["name"] == "Default Arrangement"
-        assert result[0]["bpm"] == 72
+        assert "items" in result
+        assert result["items"][0]["name"] == "Default Arrangement"
+        assert result["items"][0]["bpm"] == 72
 
 
 @pytest.mark.usefixtures("setup_context")
 class TestListPlanTemplatesToolBody:
     @pytest.mark.asyncio
     async def test_list_plan_templates(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {
-                "type": "PlanTemplate",
-                "id": "700",
-                "attributes": {
-                    "name": "Standard Sunday",
-                    "item_count": 8,
-                    "updated_at": "2026-01-10T00:00:00Z",
-                },
-            }
-        ]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {
+                    "type": "PlanTemplate",
+                    "id": "700",
+                    "attributes": {
+                        "name": "Standard Sunday",
+                        "item_count": 8,
+                        "updated_at": "2026-01-10T00:00:00Z",
+                    },
+                }
+            ],
+            total_count=1, truncated=False,
+        )
         mcp = make_services_mcp()
         fn = _get_tool_fn(mcp, "list_plan_templates")
         result = await fn(service_type_id="201")
-        assert len(result) == 1
-        assert result[0]["name"] == "Standard Sunday"
+        assert "items" in result
+        assert result["items"][0]["name"] == "Standard Sunday"
 
 
 @pytest.mark.usefixtures("setup_context")
 class TestGetNeededPositionsToolBody:
     @pytest.mark.asyncio
     async def test_get_needed_positions(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {
-                "type": "NeededPosition",
-                "id": "800",
-                "attributes": {
-                    "quantity": 2,
-                    "time": "2026-04-20T09:00:00Z",
-                    "team_position_name": "Drummer",
-                },
-                "relationships": {
-                    "team": {"data": {"id": "900"}},
-                },
-            }
-        ]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {
+                    "type": "NeededPosition",
+                    "id": "800",
+                    "attributes": {
+                        "quantity": 2,
+                        "time": "2026-04-20T09:00:00Z",
+                        "team_position_name": "Drummer",
+                    },
+                    "relationships": {
+                        "team": {"data": {"id": "900"}},
+                    },
+                }
+            ],
+            total_count=1, truncated=False,
+        )
         mcp = make_services_mcp()
         fn = _get_tool_fn(mcp, "get_needed_positions")
         result = await fn(service_type_id="201", plan_id="301")
-        assert len(result) == 1
-        assert result[0]["team_position_name"] == "Drummer"
+        assert "items" in result
+        assert result["items"][0]["team_position_name"] == "Drummer"
 
 
 @pytest.mark.usefixtures("setup_context")

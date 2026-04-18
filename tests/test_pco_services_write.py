@@ -23,10 +23,16 @@ def mock_client() -> PCOClient:
 class TestGetPlanDetails:
     def _setup_mocks(self, mock_client: AsyncMock) -> None:
         """Mock plan detail (single .get) + items/team_members (paginated .get_all)."""
+        from pco_mcp.pco.client import PagedResult
         mock_client.get.return_value = load_fixture("get_plan_details.json")
-        mock_client.get_all.return_value = []
+        mock_client.get_all.side_effect = [
+            PagedResult(items=[], total_count=0, truncated=False),  # items
+            PagedResult(items=[], total_count=0, truncated=False),  # team_members
+        ]
 
-    async def test_returns_simplified_plan(self, mock_client: AsyncMock) -> None:
+    async def test_returns_single_resource_dict_with_nested_lists(
+        self, mock_client: AsyncMock,
+    ) -> None:
         self._setup_mocks(mock_client)
         api = ServicesAPI(mock_client)
         plan = await api.get_plan_details("201", "301")
@@ -36,6 +42,11 @@ class TestGetPlanDetails:
         assert plan["items_count"] == 12
         assert "items" in plan
         assert "team_members" in plan
+        # Confirm nested lists are bare arrays, NOT envelopes
+        assert isinstance(plan["items"], list)
+        assert isinstance(plan["team_members"], list)
+        # And the composite is NOT itself an envelope
+        assert "meta" not in plan
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
         self._setup_mocks(mock_client)
@@ -52,6 +63,75 @@ class TestGetPlanDetails:
         plan = await api.get_plan_details("201", "301")
         assert "needed_positions_count" in plan
         assert plan["needed_positions_count"] == 3
+
+    async def test_team_members_include_params_sent(
+        self, mock_client: AsyncMock,
+    ) -> None:
+        """get_plan_details hits the client directly and passes include= for team_members."""
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get.return_value = load_fixture("get_plan_details.json")
+        mock_client.get_all.side_effect = [
+            PagedResult(items=[], total_count=0, truncated=False),  # items
+            PagedResult(items=[], total_count=0, truncated=False),  # team_members
+        ]
+        api = ServicesAPI(mock_client)
+        await api.get_plan_details("201", "301")
+        # Second get_all call is team_members — check its include params
+        team_call = mock_client.get_all.call_args_list[1]
+        team_params = team_call.kwargs.get("params", {})
+        assert "include" in team_params
+        assert "person" in team_params["include"]
+        assert "team_position" in team_params["include"]
+        # First call is items — no include params
+        items_call = mock_client.get_all.call_args_list[0]
+        items_kwargs = items_call.kwargs or {}
+        assert "params" not in items_kwargs or items_kwargs.get("params") is None
+
+    async def test_team_members_flattened_via_included_index(
+        self, mock_client: AsyncMock,
+    ) -> None:
+        """Team members fetched via get_plan_details get person/team_position names flattened."""
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get.return_value = load_fixture("get_plan_details.json")
+        fixture = load_fixture("list_team_members.json")
+        mock_client.get_all.side_effect = [
+            PagedResult(items=[], total_count=0, truncated=False),  # items
+            PagedResult(
+                items=fixture["data"],
+                total_count=2,
+                truncated=False,
+                included=fixture["included"],
+            ),
+        ]
+        api = ServicesAPI(mock_client)
+        plan = await api.get_plan_details("201", "301")
+        tm = plan["team_members"][0]
+        assert tm["person_id"] == "1001"
+        assert tm["person_name"] == "Alice Smith"
+        assert tm["team_position_id"] == "11"
+        assert tm["team_position_name"] == "Vocalist"
+
+    async def test_truncation_warns_but_does_not_raise(
+        self, mock_client: AsyncMock, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """If items or team_members get_all truncates, log warning but still return plan."""
+        import logging
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get.return_value = load_fixture("get_plan_details.json")
+        mock_client.get_all.side_effect = [
+            PagedResult(items=[], total_count=None, truncated=True),  # items truncated
+            PagedResult(items=[], total_count=0, truncated=False),  # team_members ok
+        ]
+        api = ServicesAPI(mock_client)
+        with caplog.at_level(logging.WARNING):
+            plan = await api.get_plan_details("201", "301")
+        assert plan["id"] == "301"
+        # Warning should mention "items" and the plan_id
+        assert any(
+            "items" in rec.message and "301" in rec.message
+            for rec in caplog.records
+            if rec.levelno == logging.WARNING
+        )
 
 
 class TestListTeamMembers:

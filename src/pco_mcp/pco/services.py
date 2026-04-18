@@ -1,7 +1,10 @@
+import logging
 from typing import Any
 
 from pco_mcp.pco._envelope import index_included, make_envelope, merge_filters
 from pco_mcp.pco.client import PCOClient
+
+logger = logging.getLogger(__name__)
 
 
 class ServicesAPI:
@@ -49,15 +52,39 @@ class ServicesAPI:
         simplified = [self._simplify_plan(p) for p in result.items]
         return make_envelope(result, simplified, params)
 
-    async def get_plan_details(self, service_type_id: str, plan_id: str) -> dict[str, Any]:
-        """Get full details for a specific plan, including items and team members."""
+    async def get_plan_details(
+        self, service_type_id: str, plan_id: str,
+    ) -> dict[str, Any]:
+        """Get full plan detail with items + team members.
+
+        Single-resource composite — returns a curated dict, NOT an envelope.
+        Nested lists ``items`` and ``team_members`` are bare arrays (part of
+        the plan's curated schema). If either internal paginated fetch
+        truncates, a warning is logged but not propagated to the caller.
+
+        Hits ``self._client`` directly rather than ``self.list_plan_items``
+        or ``self.list_team_members`` so nested lists stay bare (those
+        wrappers return envelopes).
+        """
         base = f"/services/v2/service_types/{service_type_id}/plans/{plan_id}"
-        result = await self._client.get(base)
-        plan = self._simplify_plan(result["data"])
-        items = await self._client.get_all(f"{base}/items")
-        plan["items"] = [self._simplify_item(i) for i in items]
-        team = await self._client.get_all(f"{base}/team_members")
-        plan["team_members"] = [self._simplify_team_member(tm) for tm in team]
+        plan_result = await self._client.get(base)
+        plan = self._simplify_plan(plan_result["data"])
+        items_result = await self._client.get_all(f"{base}/items")
+        team_result = await self._client.get_all(
+            f"{base}/team_members",
+            params={"include": "person,team_position"},
+        )
+        for name, r in (("items", items_result), ("team_members", team_result)):
+            if r.truncated:
+                logger.warning(
+                    "get_plan_details %s for plan_id=%s truncated at max_pages",
+                    name, plan_id,
+                )
+        included_idx = index_included(team_result.included)
+        plan["items"] = [self._simplify_item(i) for i in items_result.items]
+        plan["team_members"] = [
+            self._simplify_team_member(tm, included_idx) for tm in team_result.items
+        ]
         return plan
 
     async def list_songs(self, query: str | None = None) -> dict[str, Any]:
@@ -303,19 +330,25 @@ class ServicesAPI:
         """Delete a song and all its arrangements/attachments."""
         await self._client.delete(f"/services/v2/songs/{song_id}")
 
-    async def get_song_schedule_history(self, song_id: str) -> list[dict[str, Any]]:
-        """Get schedule history for a song."""
-        data = await self._client.get_all(
-            f"/services/v2/songs/{song_id}/song_schedules"
+    async def get_song_schedule_history(self, song_id: str) -> dict[str, Any]:
+        """Get schedule history for a song. Returns envelope ``{items, meta}``."""
+        params: dict[str, Any] = {}
+        result = await self._client.get_all(
+            f"/services/v2/songs/{song_id}/song_schedules",
+            params=params,
         )
-        return [self._simplify_song_schedule(s) for s in data]
+        simplified = [self._simplify_song_schedule(s) for s in result.items]
+        return make_envelope(result, simplified, params)
 
-    async def list_song_arrangements(self, song_id: str) -> list[dict[str, Any]]:
-        """List arrangements for a song."""
-        data = await self._client.get_all(
-            f"/services/v2/songs/{song_id}/arrangements"
+    async def list_song_arrangements(self, song_id: str) -> dict[str, Any]:
+        """List arrangements for a song. Returns envelope ``{items, meta}``."""
+        params: dict[str, Any] = {}
+        result = await self._client.get_all(
+            f"/services/v2/songs/{song_id}/arrangements",
+            params=params,
         )
-        return [self._simplify_arrangement(a) for a in data]
+        simplified = [self._simplify_arrangement(a) for a in result.items]
+        return make_envelope(result, simplified, params)
 
     async def create_arrangement(
         self,
@@ -394,21 +427,27 @@ class ServicesAPI:
             f"/services/v2/songs/{song_id}/arrangements/{arrangement_id}"
         )
 
-    async def list_plan_templates(self, service_type_id: str) -> list[dict[str, Any]]:
-        """List plan templates for a service type."""
-        data = await self._client.get_all(
-            f"/services/v2/service_types/{service_type_id}/plan_templates"
+    async def list_plan_templates(self, service_type_id: str) -> dict[str, Any]:
+        """List plan templates for a service type. Returns envelope ``{items, meta}``."""
+        params: dict[str, Any] = {}
+        result = await self._client.get_all(
+            f"/services/v2/service_types/{service_type_id}/plan_templates",
+            params=params,
         )
-        return [self._simplify_template(t) for t in data]
+        simplified = [self._simplify_template(t) for t in result.items]
+        return make_envelope(result, simplified, params)
 
     async def get_needed_positions(
-        self, service_type_id: str, plan_id: str
-    ) -> list[dict[str, Any]]:
-        """Get needed (unfilled) positions for a plan."""
-        data = await self._client.get_all(
-            f"/services/v2/service_types/{service_type_id}/plans/{plan_id}/needed_positions"
+        self, service_type_id: str, plan_id: str,
+    ) -> dict[str, Any]:
+        """Get needed (unfilled) positions for a plan. Returns envelope ``{items, meta}``."""
+        params: dict[str, Any] = {}
+        result = await self._client.get_all(
+            f"/services/v2/service_types/{service_type_id}/plans/{plan_id}/needed_positions",
+            params=params,
         )
-        return [self._simplify_needed_position(np) for np in data]
+        simplified = [self._simplify_needed_position(np) for np in result.items]
+        return make_envelope(result, simplified, params)
 
     async def upload_attachment(
         self,
@@ -470,13 +509,16 @@ class ServicesAPI:
         return await self.upload_attachment(create_url, url, filename, content_type)
 
     async def list_attachments(
-        self, song_id: str, arrangement_id: str
-    ) -> list[dict[str, Any]]:
-        """List attachments for an arrangement."""
-        data = await self._client.get_all(
-            f"/services/v2/songs/{song_id}/arrangements/{arrangement_id}/attachments"
+        self, song_id: str, arrangement_id: str,
+    ) -> dict[str, Any]:
+        """List attachments for an arrangement. Returns envelope ``{items, meta}``."""
+        params: dict[str, Any] = {}
+        result = await self._client.get_all(
+            f"/services/v2/songs/{song_id}/arrangements/{arrangement_id}/attachments",
+            params=params,
         )
-        return [self._simplify_attachment(a) for a in data]
+        simplified = [self._simplify_attachment(a) for a in result.items]
+        return make_envelope(result, simplified, params)
 
     async def create_media(
         self,
@@ -524,26 +566,53 @@ class ServicesAPI:
         return self._simplify_ccli_reporting(result["data"])
 
     async def flag_missing_ccli(self) -> dict[str, Any]:
-        """Scan the song library and return songs missing CCLI numbers."""
-        all_songs = await self._client.get_all("/services/v2/songs")
-        missing = []
-        for raw in all_songs:
+        """Scan the song library for missing CCLI numbers.
+
+        Returns a composite dict::
+
+            {
+                "total_scanned": int,
+                "total_missing": int,
+                "items": [<simplified song>, ...],   # only songs missing CCLI
+                "meta": {"total_count", "truncated", "filters_applied"}
+            }
+
+        The top-level ``items`` + ``meta`` follow the envelope convention so
+        the model reasons about completeness uniformly with other list tools.
+        ``meta.truncated`` reflects the underlying song scan.
+        """
+        params: dict[str, Any] = {}
+        result = await self._client.get_all("/services/v2/songs", params=params)
+        missing: list[dict[str, Any]] = []
+        for raw in result.items:
             attrs = raw.get("attributes", {})
             if not attrs.get("ccli_number"):
                 missing.append(self._simplify_song(raw))
         return {
-            "total_scanned": len(all_songs),
+            "total_scanned": len(result.items),
             "total_missing": len(missing),
-            "songs": missing,
+            "items": missing,
+            "meta": {
+                "total_count": result.total_count,
+                "truncated": result.truncated,
+                "filters_applied": {},
+            },
         }
 
-    async def list_media(self, media_type: str | None = None) -> list[dict[str, Any]]:
-        """List org-level media items, optionally filtered by type."""
-        params: dict[str, Any] = {}
+    async def list_media(self, media_type: str | None = None) -> dict[str, Any]:
+        """List org-level media items. Returns envelope ``{items, meta}``.
+
+        Optional ``media_type`` filter (e.g., "background", "countdown") is
+        reported in ``meta.filters_applied`` when passed.
+        """
+        defaults: dict[str, Any] = {}
+        overrides: dict[str, Any] = {}
         if media_type:
-            params["where[media_type]"] = media_type
-        data = await self._client.get_all("/services/v2/media", params=params)
-        return [self._simplify_media(m) for m in data]
+            overrides["where[media_type]"] = media_type
+        params = merge_filters(defaults, overrides)
+        result = await self._client.get_all("/services/v2/media", params=params)
+        simplified = [self._simplify_media(m) for m in result.items]
+        return make_envelope(result, simplified, params)
 
     async def update_media(
         self,
