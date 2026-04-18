@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from pco_mcp.pco.client import PCOClient
+from pco_mcp.pco.client import PCOAPIError, PCOClient
 from pco_mcp.pco.people import PeopleAPI
 
 FIXTURES = Path(__file__).parent / "fixtures" / "people"
@@ -100,6 +100,39 @@ class TestCreatePerson:
         data = call_kwargs["data"]
         attrs = data["data"]["attributes"]
         assert "email_addresses" not in attrs
+
+    async def test_create_person_email_fallback_uses_emails_array(
+        self, mock_client: AsyncMock
+    ) -> None:
+        # When the initial POST fails with 422 (email taken), the code retries
+        # without email then POSTs to the emails sub-resource. After a
+        # successful separate-email POST, the returned person dict should use
+        # the new ``emails: [{...}]`` array shape (not a top-level ``email`` key).
+        person_no_email_fixture = {
+            "data": {
+                "type": "Person",
+                "id": "1099",
+                "attributes": {
+                    "first_name": "New",
+                    "last_name": "Person",
+                    "email_addresses": [],
+                    "phone_numbers": [],
+                    "membership": None,
+                    "status": "active",
+                },
+            }
+        }
+        mock_client.post.side_effect = [
+            PCOAPIError(422, "email is taken"),  # first attempt with email
+            person_no_email_fixture,  # retry without email
+            {"data": {"type": "Email", "id": "999", "attributes": {}}},  # emails POST
+        ]
+        api = PeopleAPI(mock_client)
+        person = await api.create_person("New", "Person", email="new@example.com")
+        assert "email" not in person
+        assert person["emails"] == [
+            {"address": "new@example.com", "location": "Home", "primary": True}
+        ]
 
 
 class TestUpdatePerson:

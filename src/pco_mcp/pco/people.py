@@ -27,7 +27,7 @@ class PeopleAPI:
         on phone, so verify returned records. When ``email`` and ``phone`` are
         both supplied, ``email`` takes priority.
         """
-        defaults: dict[str, Any] = {}
+        defaults: dict[str, Any] = {"include": "emails,phone_numbers"}
         overrides: dict[str, Any] = {}
         if email and phone:
             import warnings
@@ -61,7 +61,7 @@ class PeopleAPI:
 
     async def get_list_members(self, list_id: str) -> dict[str, Any]:
         """Get people in a specific list. Returns envelope ``{items, meta}``."""
-        params: dict[str, Any] = {}
+        params: dict[str, Any] = {"include": "emails,phone_numbers"}
         result = await self._client.get_all(
             f"/people/v2/lists/{list_id}/people", params=params,
         )
@@ -117,7 +117,9 @@ class PeopleAPI:
                     }
                 },
             )
-            person["email"] = email
+            person["emails"] = [
+                {"address": email, "location": "Home", "primary": True}
+            ]
             return person
         except PCOAPIError:
             logger.info("Separate email assignment also failed for person %s", person["id"])
