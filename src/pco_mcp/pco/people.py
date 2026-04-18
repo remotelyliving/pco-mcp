@@ -73,47 +73,37 @@ class PeopleAPI:
     ) -> dict[str, Any]:
         """Create a new person record.
 
-        If email assignment fails (e.g., the email belongs to an existing PCO
-        login), the person is created without email and then we attempt to add
-        it separately. If that also fails, the person is returned with a note
-        explaining the email must be linked via the PCO web UI.
+        PCO rejects ``email_addresses`` in the Person POST body — emails must
+        be created as a separate resource. We always POST the person first
+        without email, then POST the email separately if provided. If the
+        email belongs to an existing PCO login, the separate POST will fail
+        and we return the person with a ``_warning`` note.
         """
         attributes: dict[str, Any] = {
             "first_name": first_name,
             "last_name": last_name,
         }
-        if email:
-            attributes["email_addresses"] = [{"address": email}]
         payload: dict[str, Any] = {
             "data": {
                 "type": "Person",
                 "attributes": attributes,
             }
         }
-
-        try:
-            result = await self._client.post("/people/v2/people", data=payload)
-            return self._simplify_person(result["data"])
-        except PCOAPIError as e:
-            if e.status_code != 422 or not email or "email" not in e.detail.lower():
-                raise
-
-        # Retry without email
-        logger.info(
-            "Email assignment failed for %s %s, retrying without email", first_name, last_name
-        )
-        attributes.pop("email_addresses", None)
         result = await self._client.post("/people/v2/people", data=payload)
         person = self._simplify_person(result["data"])
-
-        # Try adding the email as a separate resource
+        if not email:
+            return person
         try:
             await self._client.post(
                 f"/people/v2/people/{person['id']}/emails",
                 data={
                     "data": {
                         "type": "Email",
-                        "attributes": {"address": email, "location": "Home", "primary": True},
+                        "attributes": {
+                            "address": email,
+                            "location": "Home",
+                            "primary": True,
+                        },
                     }
                 },
             )
@@ -122,7 +112,10 @@ class PeopleAPI:
             ]
             return person
         except PCOAPIError:
-            logger.info("Separate email assignment also failed for person %s", person["id"])
+            logger.info(
+                "Email assignment failed for person %s — likely in use by another account",
+                person["id"],
+            )
             person["_warning"] = (
                 f"Person created but the email '{email}' could not be assigned — "
                 "it belongs to an existing Planning Center account. "
@@ -307,7 +300,7 @@ class PeopleAPI:
         """Get blockout dates for a person. Returns envelope ``{items, meta}``."""
         params: dict[str, Any] = {}
         result = await self._client.get_all(
-            f"/people/v2/people/{person_id}/blockouts", params=params,
+            f"/services/v2/people/{person_id}/blockouts", params=params,
         )
         simplified = [self._simplify_blockout(b) for b in result.items]
         return make_envelope(result, simplified, params)
@@ -332,7 +325,7 @@ class PeopleAPI:
         if repeat_until is not None:
             attributes["repeat_until"] = repeat_until
         payload: dict[str, Any] = {"data": {"type": "Blockout", "attributes": attributes}}
-        result = await self._client.post(f"/people/v2/people/{person_id}/blockouts", data=payload)
+        result = await self._client.post(f"/services/v2/people/{person_id}/blockouts", data=payload)
         return self._simplify_blockout(result["data"])
 
     async def add_note(

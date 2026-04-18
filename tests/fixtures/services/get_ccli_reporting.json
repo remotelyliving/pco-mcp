@@ -3,10 +3,10 @@
         "type": "ItemNote",
         "id": "7001",
         "attributes": {
-            "print_count": 5,
-            "digital_count": 12,
-            "recording_count": 2,
-            "translation_count": 0
+            "print": 5,
+            "digital": 12,
+            "recording": 2,
+            "translation": 0
         }
     }
 }

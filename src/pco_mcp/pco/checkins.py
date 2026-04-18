@@ -13,15 +13,15 @@ class CheckInsAPI:
     async def get_events(self, include_archived: bool = False) -> dict[str, Any]:
         """List check-in events. Returns envelope `{items, meta}`.
 
-        Defaults to active (non-archived) events by forcing
-        `where[archived_at]=""`. Pass `include_archived=True` to drop that
+        Defaults to active (non-archived) events by sending
+        `filter=not_archived`. Pass `include_archived=True` to drop that
         default and include archived events. `meta.filters_applied` reports
         the scoping actually sent to PCO.
         """
-        defaults: dict[str, Any] = {"where[archived_at]": ""}
+        defaults: dict[str, Any] = {"filter": "not_archived"}
         overrides: dict[str, Any] = {}
         if include_archived:
-            overrides["where[archived_at]"] = None
+            overrides["filter"] = None
         params = merge_filters(defaults, overrides)
         result = await self._client.get_all("/check-ins/v2/events", params=params)
         simplified = [self._simplify_event(e) for e in result.items]
@@ -59,10 +59,11 @@ class CheckInsAPI:
         start_date: str | None = None,
         end_date: str | None = None,
     ) -> dict[str, Any]:
-        """Get headcount data aggregated by event period. Returns envelope `{items, meta}`.
+        """Get headcount data aggregated by event time. Returns envelope `{items, meta}`.
 
-        Each item is one event period with total attendance and a
-        `by_location` breakdown sourced from per-period headcount calls.
+        Iterates event_times (not event_periods — those are not a top-level
+        PCO resource). Each item is one event_time with total attendance
+        across attendance_types and a by_location breakdown.
         """
         defaults: dict[str, Any] = {}
         overrides: dict[str, Any] = {}
@@ -71,36 +72,39 @@ class CheckInsAPI:
         if end_date:
             overrides["where[starts_at][lte]"] = end_date
         params = merge_filters(defaults, overrides)
-        periods_result = await self._client.get_all(
-            f"/check-ins/v2/events/{event_id}/event_periods",
+        event_times_result = await self._client.get_all(
+            f"/check-ins/v2/events/{event_id}/event_times",
             params=params,
         )
         aggregated: list[dict[str, Any]] = []
-        for period in periods_result.items:
-            period_id = period["id"]
-            period_attrs = period.get("attributes", {})
+        for event_time in event_times_result.items:
+            et_id = event_time["id"]
+            et_attrs = event_time.get("attributes", {})
             hc_result = await self._client.get(
-                f"/check-ins/v2/event_periods/{period_id}/headcounts"
+                f"/check-ins/v2/event_times/{et_id}/headcounts",
+                params={"include": "attendance_type"},
             )
+            included = {(i["type"], i["id"]): i for i in hc_result.get("included", [])}
             by_location: dict[str, int] = {}
             total = 0
             for hc in hc_result.get("data", []):
                 hc_attrs = hc.get("attributes", {})
                 count = hc_attrs.get("total", 0)
                 total += count
-                at_data = (
+                at_ref = (
                     hc.get("relationships", {})
                     .get("attendance_type", {})
-                    .get("data", {})
+                    .get("data") or {}
                 )
-                loc_name = at_data.get("attributes", {}).get("name", "Unknown")
+                at_rec = included.get((at_ref.get("type"), at_ref.get("id")))
+                loc_name = (at_rec or {}).get("attributes", {}).get("name", "Unknown")
                 by_location[loc_name] = count
             aggregated.append({
-                "date": period_attrs.get("starts_at"),
+                "date": et_attrs.get("starts_at"),
                 "total": total,
                 "by_location": by_location,
             })
-        return make_envelope(periods_result, aggregated, params)
+        return make_envelope(event_times_result, aggregated, params)
 
     def _simplify_event(self, raw: dict[str, Any]) -> dict[str, Any]:
         """Curated check-in event. Kept: id, name, frequency, created_at, archived flag + timestamp."""

@@ -48,15 +48,34 @@ class TestGetEvents:
         assert "filter" not in call_params
         assert "filter" not in result["meta"]["filters_applied"]
 
-    async def test_passes_include_param_for_instances_and_owner(self, mock_client: AsyncMock) -> None:
+    async def test_passes_include_owner_only(self, mock_client: AsyncMock) -> None:
         from pco_mcp.pco.client import PagedResult
         mock_client.get_all.return_value = PagedResult(items=[], total_count=0, truncated=False)
         api = CalendarAPI(mock_client)
         await api.get_events()
         call_params = mock_client.get_all.call_args.kwargs["params"]
-        assert "include" in call_params
-        assert "event_instances" in call_params["include"]
-        assert "owner" in call_params["include"]
+        # include=event_instances is NOT valid on this endpoint — only owner.
+        assert call_params.get("include") == "owner"
+
+    async def test_does_not_send_order_param(self, mock_client: AsyncMock) -> None:
+        """Calendar v2 events endpoint does not support ordering."""
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(items=[], total_count=0, truncated=False)
+        api = CalendarAPI(mock_client)
+        await api.get_events()
+        call_params = mock_client.get_all.call_args.kwargs["params"]
+        assert "order" not in call_params
+
+    async def test_featured_only_sends_where_featured(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(items=[], total_count=0, truncated=False)
+        api = CalendarAPI(mock_client)
+        result = await api.get_events(featured_only=True)
+        call_params = mock_client.get_all.call_args.kwargs["params"]
+        # Featured events are filtered via where[featured]=true, NOT via
+        # `filter=featured` — the latter is not in can_filter.
+        assert call_params.get("where[featured]") == "true"
+        assert result["meta"]["filters_applied"].get("where[featured]") == "true"
 
     async def test_simplified_event_includes_owner_name(self, mock_client: AsyncMock) -> None:
         from pco_mcp.pco.client import PagedResult

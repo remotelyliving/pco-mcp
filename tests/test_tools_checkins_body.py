@@ -58,7 +58,7 @@ class TestListCheckinEventsToolBody:
         fn = _get_tool_fn(mcp, "list_checkin_events")
         result = await fn()
         assert result["items"][0]["name"] == "Sunday Morning"
-        assert result["meta"]["filters_applied"].get("where[archived_at]") == ""
+        assert result["meta"]["filters_applied"].get("filter") == "not_archived"
 
 
 class TestGetEventAttendanceToolBody:
@@ -84,7 +84,7 @@ class TestGetHeadcountsToolBody:
     async def test_returns_envelope(self, mock_client: AsyncMock) -> None:
         mock_client.get_all.return_value = PagedResult(
             items=[{
-                "type": "EventPeriod", "id": "301",
+                "type": "EventTime", "id": "301",
                 "attributes": {"starts_at": "2026-04-13T09:00:00Z"},
             }],
             total_count=1, truncated=False,
@@ -95,15 +95,16 @@ class TestGetHeadcountsToolBody:
                 "attributes": {"total": 150},
                 "relationships": {
                     "attendance_type": {
-                        "data": {
-                            "type": "AttendanceType", "id": "50",
-                            "attributes": {"name": "Main Sanctuary"},
-                        }
+                        "data": {"type": "AttendanceType", "id": "50"}
                     }
                 }
-            }]
+            }],
+            "included": [
+                {"type": "AttendanceType", "id": "50", "attributes": {"name": "Main Sanctuary"}}
+            ],
         }
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "get_headcounts")
         result = await fn(event_id="101")
         assert result["items"][0]["total"] == 150
+        assert result["items"][0]["by_location"]["Main Sanctuary"] == 150

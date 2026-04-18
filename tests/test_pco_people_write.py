@@ -64,13 +64,18 @@ class TestGetListMembers:
 
 class TestCreatePerson:
     async def test_create_person_returns_simplified_record(self, mock_client: AsyncMock) -> None:
-        mock_client.post.return_value = load_fixture("create_person.json")
+        # Happy path: one POST for the person, one POST for the email.
+        person_fixture = load_fixture("create_person.json")
+        email_fixture = {"data": {"type": "Email", "id": "999", "attributes": {}}}
+        mock_client.post.side_effect = [person_fixture, email_fixture]
         api = PeopleAPI(mock_client)
         person = await api.create_person("New", "Person", email="new@example.com")
         assert person["id"] == "1099"
         assert person["first_name"] == "New"
         assert person["last_name"] == "Person"
         assert person["emails"][0]["address"] == "new@example.com"
+        assert person["emails"][0]["location"] == "Home"
+        assert person["emails"][0]["primary"] is True
 
     async def test_create_person_posts_to_correct_endpoint(self, mock_client: AsyncMock) -> None:
         mock_client.post.return_value = load_fixture("create_person.json")
@@ -79,54 +84,76 @@ class TestCreatePerson:
         call_path = mock_client.post.call_args.args[0]
         assert "/people/v2/people" in call_path
 
-    async def test_create_person_sends_correct_payload(self, mock_client: AsyncMock) -> None:
-        mock_client.post.return_value = load_fixture("create_person.json")
+    async def test_create_person_body_omits_email_addresses(
+        self, mock_client: AsyncMock
+    ) -> None:
+        """PCO rejects ``email_addresses`` in the Person POST body, so we never
+        include it — even when an email is provided."""
+        person_fixture = load_fixture("create_person.json")
+        email_fixture = {"data": {"type": "Email", "id": "999", "attributes": {}}}
+        mock_client.post.side_effect = [person_fixture, email_fixture]
         api = PeopleAPI(mock_client)
         await api.create_person("New", "Person", email="new@example.com")
-        call_kwargs = mock_client.post.call_args.kwargs
-        data = call_kwargs["data"]
+        # First POST is the person create — inspect its payload
+        first_call = mock_client.post.call_args_list[0]
+        data = first_call.kwargs["data"]
         assert data["data"]["type"] == "Person"
         attrs = data["data"]["attributes"]
         assert attrs["first_name"] == "New"
         assert attrs["last_name"] == "Person"
-        assert "email_addresses" in attrs
+        assert "email_addresses" not in attrs
 
     async def test_create_person_without_email(self, mock_client: AsyncMock) -> None:
-        # Without email, payload should not include email_addresses
+        # Without email, only the person POST happens — no emails POST.
         mock_client.post.return_value = load_fixture("create_person.json")
         api = PeopleAPI(mock_client)
         await api.create_person("New", "Person")
+        assert mock_client.post.call_count == 1
         call_kwargs = mock_client.post.call_args.kwargs
-        data = call_kwargs["data"]
-        attrs = data["data"]["attributes"]
+        attrs = call_kwargs["data"]["data"]["attributes"]
         assert "email_addresses" not in attrs
+
+    async def test_create_person_posts_email_separately(
+        self, mock_client: AsyncMock
+    ) -> None:
+        """With email provided, a second POST to /emails must fire."""
+        person_fixture = load_fixture("create_person.json")
+        email_fixture = {"data": {"type": "Email", "id": "999", "attributes": {}}}
+        mock_client.post.side_effect = [person_fixture, email_fixture]
+        api = PeopleAPI(mock_client)
+        await api.create_person("New", "Person", email="new@example.com")
+        assert mock_client.post.call_count == 2
+        second_call = mock_client.post.call_args_list[1]
+        assert "/people/v2/people/1099/emails" in second_call.args[0]
+        email_payload = second_call.kwargs["data"]
+        assert email_payload["data"]["type"] == "Email"
+        assert email_payload["data"]["attributes"]["address"] == "new@example.com"
+
+    async def test_create_person_email_422_returns_warning(
+        self, mock_client: AsyncMock
+    ) -> None:
+        """When the separate /emails POST returns 422 (email in use), the
+        person is returned with a ``_warning`` note instead of raising."""
+        person_fixture = load_fixture("create_person.json")
+        mock_client.post.side_effect = [
+            person_fixture,
+            PCOAPIError(422, "email is taken"),
+        ]
+        api = PeopleAPI(mock_client)
+        person = await api.create_person("New", "Person", email="taken@example.com")
+        assert person["id"] == "1099"
+        assert "_warning" in person
+        assert "taken@example.com" in person["_warning"]
 
     async def test_create_person_email_fallback_uses_emails_array(
         self, mock_client: AsyncMock
     ) -> None:
-        # When the initial POST fails with 422 (email taken), the code retries
-        # without email then POSTs to the emails sub-resource. After a
-        # successful separate-email POST, the returned person dict should use
-        # the new ``emails: [{...}]`` array shape (not a top-level ``email`` key).
-        person_no_email_fixture = {
-            "data": {
-                "type": "Person",
-                "id": "1099",
-                "attributes": {
-                    "first_name": "New",
-                    "last_name": "Person",
-                    "email_addresses": [],
-                    "phone_numbers": [],
-                    "membership": None,
-                    "status": "active",
-                },
-            }
-        }
-        mock_client.post.side_effect = [
-            PCOAPIError(422, "email is taken"),  # first attempt with email
-            person_no_email_fixture,  # retry without email
-            {"data": {"type": "Email", "id": "999", "attributes": {}}},  # emails POST
-        ]
+        """Compatibility with the prior fallback shape — after a successful
+        separate-email POST, the returned person dict uses the ``emails:
+        [{...}]`` array shape (not a top-level ``email`` key)."""
+        person_fixture = load_fixture("create_person.json")
+        email_fixture = {"data": {"type": "Email", "id": "999", "attributes": {}}}
+        mock_client.post.side_effect = [person_fixture, email_fixture]
         api = PeopleAPI(mock_client)
         person = await api.create_person("New", "Person", email="new@example.com")
         assert "email" not in person

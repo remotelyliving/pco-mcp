@@ -116,7 +116,7 @@ Read-only calendar events and resource bookings for conflict avoidance.
 
 | Tool | Type | Description |
 |------|------|-------------|
-| `list_calendar_events` | READ | Upcoming events with date range filtering |
+| `list_calendar_events` | READ | List future events (optionally featured_only or include_past) |
 | `get_event_details` | READ | Event detail with room/resource bookings |
 
 ## Development

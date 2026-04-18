@@ -546,7 +546,7 @@ class TestListMediaToolBody:
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_media")
         result = await fn(media_type="background")
-        assert result["meta"]["filters_applied"].get("where[media_type]") == "background"
+        assert result["meta"]["filters_applied"].get("filter") == "background"
 
 
 class TestUpdateMediaToolBody:
@@ -576,17 +576,17 @@ class TestGetCCLIReportingToolBody:
                 "type": "ItemNote",
                 "id": "7001",
                 "attributes": {
-                    "print_count": 5,
-                    "digital_count": 12,
-                    "recording_count": 2,
-                    "translation_count": 0,
+                    "print": 5,
+                    "digital": 12,
+                    "recording": 2,
+                    "translation": 0,
                 },
             }
         }
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "get_ccli_reporting")
         report = await fn(service_type_id="201", plan_id="301", item_id="501")
-        assert report["print_count"] == 5
+        assert report["print"] == 5
 
 
 class TestGetSongUsageReportToolBody:

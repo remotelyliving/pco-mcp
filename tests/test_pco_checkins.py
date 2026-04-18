@@ -31,7 +31,7 @@ class TestGetEvents:
         assert result["items"][0]["id"] == "101"
         assert result["meta"]["total_count"] == 2
         assert result["meta"]["truncated"] is False
-        assert result["meta"]["filters_applied"].get("where[archived_at]") == ""
+        assert result["meta"]["filters_applied"].get("filter") == "not_archived"
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
         mock_client.get_all.return_value = PagedResult(
@@ -66,8 +66,8 @@ class TestGetEvents:
         api = CheckInsAPI(mock_client)
         result = await api.get_events(include_archived=True)
         call_params = mock_client.get_all.call_args.kwargs["params"]
-        assert "where[archived_at]" not in call_params
-        assert "where[archived_at]" not in result["meta"]["filters_applied"]
+        assert "filter" not in call_params
+        assert "filter" not in result["meta"]["filters_applied"]
 
 
 class TestGetEventCheckins:
@@ -125,13 +125,48 @@ class TestGetHeadcounts:
         assert result["items"][1]["total"] == 130
         assert result["items"][1]["by_location"]["Main Sanctuary"] == 130
 
-    async def test_calls_event_periods_endpoint(self, mock_client: AsyncMock) -> None:
+    async def test_calls_event_times_endpoint(self, mock_client: AsyncMock) -> None:
         mock_client.get_all.return_value = PagedResult(items=[], total_count=0, truncated=False)
         api = CheckInsAPI(mock_client)
         await api.get_headcounts("101")
         call_path = mock_client.get_all.call_args.args[0]
         assert "101" in call_path
-        assert "/event_periods" in call_path
+        assert "/event_times" in call_path
+
+    async def test_headcounts_get_uses_event_times_path_with_include(
+        self, mock_client: AsyncMock
+    ) -> None:
+        mock_client.get_all.return_value = PagedResult(
+            items=[{"type": "EventTime", "id": "301", "attributes": {"starts_at": "2026-04-13T09:00:00Z"}}],
+            total_count=1, truncated=False,
+        )
+        mock_client.get.return_value = {"data": [], "included": []}
+        api = CheckInsAPI(mock_client)
+        await api.get_headcounts("101")
+        call_path = mock_client.get.call_args.args[0]
+        assert "/check-ins/v2/event_times/301/headcounts" in call_path
+        call_params = mock_client.get.call_args.kwargs["params"]
+        assert call_params.get("include") == "attendance_type"
+
+    async def test_headcounts_unknown_location_when_included_missing(
+        self, mock_client: AsyncMock
+    ) -> None:
+        mock_client.get_all.return_value = PagedResult(
+            items=[{"type": "EventTime", "id": "301", "attributes": {"starts_at": "2026-04-13T09:00:00Z"}}],
+            total_count=1, truncated=False,
+        )
+        # Headcount has a relationship ref but no matching included record
+        mock_client.get.return_value = {
+            "data": [{
+                "type": "Headcount", "id": "401",
+                "attributes": {"total": 50},
+                "relationships": {"attendance_type": {"data": {"type": "AttendanceType", "id": "999"}}},
+            }],
+            "included": [],
+        }
+        api = CheckInsAPI(mock_client)
+        result = await api.get_headcounts("101")
+        assert result["items"][0]["by_location"] == {"Unknown": 50}
 
     async def test_passes_date_filters_to_periods(self, mock_client: AsyncMock) -> None:
         mock_client.get_all.return_value = PagedResult(items=[], total_count=0, truncated=False)

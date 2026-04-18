@@ -141,12 +141,11 @@ class TestIncludeWiring:
         fn = _get_tool_fn(mcp, "list_calendar_events")
         await fn()
         call_params = mock_client.get_all.call_args.kwargs["params"]
-        assert "include" in call_params, (
-            "list_calendar_events must send include= to surface "
-            "event_instances/owner in curated records"
-        )
-        assert "event_instances" in call_params["include"]
-        assert "owner" in call_params["include"]
+        # include=event_instances is NOT valid on this endpoint per PCO's
+        # can_include — only owner is supported. Live probe confirmed:
+        # invalid includes are silently ignored. Keep sending owner so the
+        # simplified event carries owner_name.
+        assert call_params.get("include") == "owner"
 
     async def test_services_list_team_members_sends_include(
         self, mock_client: AsyncMock,

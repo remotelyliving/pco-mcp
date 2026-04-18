@@ -602,13 +602,17 @@ class ServicesAPI:
     async def list_media(self, media_type: str | None = None) -> dict[str, Any]:
         """List org-level media items. Returns envelope ``{items, meta}``.
 
-        Optional ``media_type`` filter (e.g., "background", "countdown") is
-        reported in ``meta.filters_applied`` when passed.
+        Optional ``media_type`` is sent as ``filter=<value>`` (the documented
+        PCO path — ``where[media_type]`` is silently ignored server-side).
+        Valid values: ``archived, not_archived, audio, background_audio,
+        background_image, background_video, countdown, curriculum, document,
+        drama, image, powerpoint, song_video, video``. The active filter is
+        reported in ``meta.filters_applied``.
         """
         defaults: dict[str, Any] = {}
         overrides: dict[str, Any] = {}
         if media_type:
-            overrides["where[media_type]"] = media_type
+            overrides["filter"] = media_type
         params = merge_filters(defaults, overrides)
         result = await self._client.get_all("/services/v2/media", params=params)
         simplified = [self._simplify_media(m) for m in result.items]
@@ -859,10 +863,13 @@ class ServicesAPI:
         return simplified
 
     def _simplify_ccli_reporting(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """CCLI reporting counts. PCO returns bare ``print``/``digital``/etc
+        without the ``_count`` suffix.
+        """
         attrs = raw.get("attributes", {})
         return {
-            "print_count": attrs.get("print_count", 0),
-            "digital_count": attrs.get("digital_count", 0),
-            "recording_count": attrs.get("recording_count", 0),
-            "translation_count": attrs.get("translation_count", 0),
+            "print": attrs.get("print", 0),
+            "digital": attrs.get("digital", 0),
+            "recording": attrs.get("recording", 0),
+            "translation": attrs.get("translation", 0),
         }

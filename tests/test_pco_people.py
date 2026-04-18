@@ -169,7 +169,7 @@ class TestGetPersonBlockouts:
         api = PeopleAPI(mock_client)
         await api.get_person_blockouts("1001")
         call_path = mock_client.get_all.call_args.args[0]
-        assert "/people/v2/people/1001/blockouts" in call_path
+        assert "/services/v2/people/1001/blockouts" in call_path
 
     async def test_blockout_has_expected_fields(self, mock_client: AsyncMock) -> None:
         from pco_mcp.pco.client import PagedResult
@@ -440,8 +440,7 @@ class TestAddBlockout:
         api = PeopleAPI(mock_client)
         await api.add_blockout("1001", description="Family vacation", starts_at="2026-04-20T00:00:00Z", ends_at="2026-04-27T00:00:00Z")
         call_path = mock_client.post.call_args.args[0]
-        assert "1001" in call_path
-        assert "/blockouts" in call_path
+        assert "/services/v2/people/1001/blockouts" in call_path
         data = mock_client.post.call_args.kwargs["data"]
         attrs = data["data"]["attributes"]
         assert attrs["description"] == "Family vacation"

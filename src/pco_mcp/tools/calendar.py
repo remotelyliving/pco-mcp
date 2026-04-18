@@ -10,18 +10,18 @@ def register_calendar_tools(mcp: FastMCP) -> None:
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
     async def list_calendar_events(
-        start_date: str | None = None,
-        end_date: str | None = None,
         featured_only: bool = False,
         include_past: bool = False,
     ) -> dict[str, Any]:
         """List calendar events. Returns `{items, meta: {total_count, truncated, filters_applied}}`.
 
-        By default returns ONLY future non-featured events ordered by start
-        date. Pass `include_past=True` to include past events. Pass
-        `start_date`/`end_date` (ISO date strings) to scope the window.
-        `start_date`/`end_date` do NOT remove the future-only default on
-        their own — pair them with `include_past=True` to search history.
+        Defaults to future events. Pass `include_past=True` to include past
+        events. Pass `featured_only=True` to restrict to featured events.
+
+        NOTE: PCO does not support filtering this endpoint by start/end date —
+        event date/time attributes live on EventInstance, not Event. To find
+        events that occur on a specific date, list all events and call
+        `get_event_details(event_id)` to inspect their instances.
 
         `meta.filters_applied` reports exactly what scoping was sent to PCO
         so you can tell an empty result from a narrow filter.
@@ -31,8 +31,6 @@ def register_calendar_tools(mcp: FastMCP) -> None:
         api = get_calendar_api()
         return await safe_tool_call(
             api.get_events(
-                start_date=start_date,
-                end_date=end_date,
                 featured_only=featured_only,
                 include_past=include_past,
             )

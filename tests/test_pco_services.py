@@ -828,8 +828,8 @@ class TestListMedia:
         api = ServicesAPI(mock_client)
         result = await api.list_media(media_type="image")
         params = mock_client.get_all.call_args.kwargs.get("params", {})
-        assert params.get("where[media_type]") == "image"
-        assert result["meta"]["filters_applied"].get("where[media_type]") == "image"
+        assert params.get("filter") == "image"
+        assert result["meta"]["filters_applied"].get("filter") == "image"
 
 
 class TestUpdateMedia:
@@ -853,10 +853,10 @@ class TestGetCCLIReporting:
         mock_client.get.return_value = load_fixture("get_ccli_reporting.json")
         api = ServicesAPI(mock_client)
         report = await api.get_ccli_reporting("201", "301", "501")
-        assert report["print_count"] == 5
-        assert report["digital_count"] == 12
-        assert report["recording_count"] == 2
-        assert report["translation_count"] == 0
+        assert report["print"] == 5
+        assert report["digital"] == 12
+        assert report["recording"] == 2
+        assert report["translation"] == 0
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
         mock_client.get.return_value = load_fixture("get_ccli_reporting.json")

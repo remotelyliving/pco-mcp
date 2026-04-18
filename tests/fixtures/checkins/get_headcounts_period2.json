@@ -1,5 +1,8 @@
 {
     "data": [
-        {"type": "Headcount", "id": "403", "attributes": {"total": 130, "attending_count": 130}, "relationships": {"attendance_type": {"data": {"type": "AttendanceType", "id": "50", "attributes": {"name": "Main Sanctuary"}}}}}
+        {"type": "Headcount", "id": "403", "attributes": {"total": 130}, "relationships": {"attendance_type": {"data": {"type": "AttendanceType", "id": "50"}}}}
+    ],
+    "included": [
+        {"type": "AttendanceType", "id": "50", "attributes": {"name": "Main Sanctuary"}}
     ]
 }

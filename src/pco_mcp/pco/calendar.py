@@ -12,31 +12,29 @@ class CalendarAPI:
 
     async def get_events(
         self,
-        start_date: str | None = None,
-        end_date: str | None = None,
         featured_only: bool = False,
         include_past: bool = False,
     ) -> dict[str, Any]:
-        """List calendar events. Returns an envelope `{items, meta}`.
+        """List calendar events. Returns envelope `{items, meta}`.
 
-        Defaults to future non-featured events ordered by start date. Pass
-        `include_past=True` to remove the future-only default. `start_date` /
-        `end_date` scope by the events' start time and do NOT remove the
-        future default — pass `include_past=True` alongside them to search
-        history.
+        Defaults to future events. Pass `include_past=True` to remove the
+        future-only filter. Pass `featured_only=True` to restrict to
+        featured events.
+
+        NOTE: PCO does not support filtering the event list by start time
+        (starts_at/ends_at live on EventInstance, not Event). To find events
+        that occur on a specific date, list all events and then use
+        `get_event_detail(event_id)` to inspect their instances.
         """
         defaults: dict[str, Any] = {
-            "order": "starts_at",
-            "filter": "featured,future" if featured_only else "future",
-            "include": "event_instances,owner",
+            "filter": "future",
+            "include": "owner",
         }
         overrides: dict[str, Any] = {}
+        if featured_only:
+            overrides["where[featured]"] = "true"
         if include_past:
             overrides["filter"] = None  # removes the default
-        if start_date:
-            overrides["where[starts_at][gte]"] = start_date
-        if end_date:
-            overrides["where[starts_at][lte]"] = end_date
         params = merge_filters(defaults, overrides)
         result = await self._client.get_all("/calendar/v2/events", params=params)
         included_index = index_included(result.included)

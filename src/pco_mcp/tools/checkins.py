@@ -14,8 +14,8 @@ def register_checkins_tools(mcp: FastMCP) -> None:
     ) -> dict[str, Any]:
         """List check-in events. Returns `{items, meta: {total_count, truncated, filters_applied}}`.
 
-        Defaults to active (non-archived) events only by forcing
-        `where[archived_at]=""`. Pass `include_archived=True` to include
+        Defaults to active (non-archived) events only by sending
+        `filter=not_archived`. Pass `include_archived=True` to include
         archived events as well. Check `meta.filters_applied` to see exactly
         what scoping was sent to PCO so you can tell an empty result from a
         narrow filter.
@@ -55,11 +55,12 @@ def register_checkins_tools(mcp: FastMCP) -> None:
         start_date: str | None = None,
         end_date: str | None = None,
     ) -> dict[str, Any]:
-        """Get headcount data aggregated by event period. Returns `{items, meta}`.
+        """Get headcount data aggregated by event time. Returns `{items, meta}`.
 
-        Each item is one event period with total attendance and a
+        Each item is one event time with total attendance and a
         `by_location` breakdown (e.g., Main Sanctuary: 150, Kids: 45).
-        Optionally filter periods by date range (ISO dates).
+        Optionally filter by date range (ISO dates) against the event
+        time's starts_at.
         """
         from pco_mcp.tools._context import get_checkins_api, safe_tool_call
 
