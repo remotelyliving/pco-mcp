@@ -27,7 +27,7 @@ class TestPagedResult:
 class TestMakeEnvelope:
     def test_wraps_items_with_meta(self) -> None:
         pr = PagedResult(items=[{"raw": 1}], total_count=42, truncated=True)
-        env = make_envelope(pr, simplified=[{"id": "1"}], filters_applied={"filter": "future"})
+        env = make_envelope(pr, simplified=[{"id": "1"}], params={"filter": "future"})
         assert env == {
             "items": [{"id": "1"}],
             "meta": {"total_count": 42, "truncated": True, "filters_applied": {"filter": "future"}},
@@ -35,14 +35,25 @@ class TestMakeEnvelope:
 
     def test_empty_items_still_includes_meta(self) -> None:
         pr = PagedResult(items=[], total_count=0, truncated=False)
-        env = make_envelope(pr, simplified=[], filters_applied={"foo": "bar"})
+        env = make_envelope(pr, simplified=[], params={"foo": "bar"})
         assert env["items"] == []
         assert env["meta"] == {"total_count": 0, "truncated": False, "filters_applied": {"foo": "bar"}}
 
     def test_none_total_count_passes_through(self) -> None:
         pr = PagedResult(items=[1], total_count=None, truncated=False)
-        env = make_envelope(pr, simplified=[1], filters_applied={})
+        env = make_envelope(pr, simplified=[1], params={})
         assert env["meta"]["total_count"] is None
+
+    def test_strips_plumbing_keys_from_filters_applied(self) -> None:
+        pr = PagedResult(items=[], total_count=0, truncated=False)
+        env = make_envelope(pr, simplified=[], params={
+            "filter": "future",
+            "include": "owner",
+            "order": "starts_at",
+            "per_page": 100,
+            "where[x]": "y",
+        })
+        assert env["meta"]["filters_applied"] == {"filter": "future", "where[x]": "y"}
 
 
 class TestMergeFilters:

@@ -4,17 +4,22 @@ from typing import Any
 from pco_mcp.pco.client import PagedResult
 
 
+PLUMBING_KEYS: frozenset[str] = frozenset({"include", "order", "per_page"})
+
+
 def make_envelope(
     result: PagedResult,
     simplified: list[Any],
-    filters_applied: dict[str, Any],
+    params: dict[str, Any],
 ) -> dict[str, Any]:
     """Wrap a simplified list + PagedResult metadata into the standard envelope.
 
     Shape: {items, meta: {total_count, truncated, filters_applied}}.
-    filters_applied mirrors the params actually sent to PCO so the model can
-    see the scope of what it received.
+    `params` is the full param dict sent to PCO; plumbing keys (include,
+    order, per_page) are stripped so `meta.filters_applied` reflects only
+    scoping filters that affect truthfulness.
     """
+    filters_applied = {k: v for k, v in params.items() if k not in PLUMBING_KEYS}
     return {
         "items": simplified,
         "meta": {
@@ -42,3 +47,8 @@ def merge_filters(
         else:
             merged[key] = value
     return merged
+
+
+def index_included(included: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
+    """Build a (type, id) -> record lookup from a JSON:API `included` array."""
+    return {(rec["type"], rec["id"]): rec for rec in included}

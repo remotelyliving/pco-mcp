@@ -1,6 +1,6 @@
 from typing import Any
 
-from pco_mcp.pco._envelope import make_envelope, merge_filters
+from pco_mcp.pco._envelope import index_included, make_envelope, merge_filters
 from pco_mcp.pco.client import PCOClient
 
 
@@ -39,13 +39,9 @@ class CalendarAPI:
             overrides["where[starts_at][lte]"] = end_date
         params = merge_filters(defaults, overrides)
         result = await self._client.get_all("/calendar/v2/events", params=params)
-        included_index = _index_included(result.included)
+        included_index = index_included(result.included)
         simplified = [self._simplify_event(e, included_index) for e in result.items]
-        filters_applied = {
-            k: v for k, v in params.items()
-            if k not in {"include", "order", "per_page"}
-        }
-        return make_envelope(result, simplified, filters_applied)
+        return make_envelope(result, simplified, params)
 
     async def get_event_detail(self, event_id: str) -> dict[str, Any]:
         """Get full event detail with instances and resource bookings.
@@ -121,8 +117,3 @@ class CalendarAPI:
             "resource_type": attrs.get("resource_type"),
             "approval_status": attrs.get("approval_status"),
         }
-
-
-def _index_included(included: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
-    """Build a (type, id) -> record lookup from a JSON:API `included` array."""
-    return {(rec["type"], rec["id"]): rec for rec in included}
