@@ -305,8 +305,12 @@ class TestMainHealthDBError:
 class TestPeopleAPIEmailAndPhoneWarning:
     @pytest.mark.asyncio
     async def test_search_people_warns_when_email_and_phone_both_provided(self) -> None:
+        from pco_mcp.pco.client import PagedResult
+
         mock_client = AsyncMock(spec=PCOClient)
-        mock_client.get = AsyncMock(return_value={"data": []})
+        mock_client.get_all = AsyncMock(
+            return_value=PagedResult(items=[], total_count=0, truncated=False)
+        )
         api = PeopleAPI(mock_client)
 
         import warnings
@@ -316,7 +320,8 @@ class TestPeopleAPIEmailAndPhoneWarning:
             result = await api.search_people(email="a@b.com", phone="555-1234")
 
         assert any("email" in str(w.message).lower() for w in caught)
-        assert result == []
+        assert result["items"] == []
+        assert result["meta"]["total_count"] == 0
 
 
 # ---------------------------------------------------------------------------

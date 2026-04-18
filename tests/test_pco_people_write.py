@@ -21,30 +21,45 @@ def mock_client() -> PCOClient:
 
 
 class TestGetListMembers:
-    async def test_returns_people_in_list(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("get_list_members.json")["data"]
+    async def test_returns_envelope(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("get_list_members.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = PeopleAPI(mock_client)
-        members = await api.get_list_members("42")
-        assert len(members) == 2
-        assert members[0]["first_name"] == "Alice"
-        assert members[1]["first_name"] == "Carol"
+        result = await api.get_list_members("42")
+        assert "items" in result
+        assert "meta" in result
+        assert result["meta"]["total_count"] == 2
+        assert len(result["items"]) == 2
+        assert result["items"][0]["first_name"] == "Alice"
+        assert result["items"][1]["first_name"] == "Carol"
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("get_list_members.json")["data"]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("get_list_members.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = PeopleAPI(mock_client)
         await api.get_list_members("42")
         call_path = mock_client.get_all.call_args.args[0]
         assert "/people/v2/lists/42/people" in call_path
 
     async def test_returns_simplified_records(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("get_list_members.json")["data"]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("get_list_members.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = PeopleAPI(mock_client)
-        members = await api.get_list_members("42")
-        record = members[0]
+        result = await api.get_list_members("42")
+        record = result["items"][0]
         assert "id" in record
         assert "first_name" in record
         assert "last_name" in record
-        assert "email" in record
+        assert "emails" in record
 
 
 class TestCreatePerson:
@@ -55,7 +70,7 @@ class TestCreatePerson:
         assert person["id"] == "1099"
         assert person["first_name"] == "New"
         assert person["last_name"] == "Person"
-        assert person["email"] == "new@example.com"
+        assert person["emails"][0]["address"] == "new@example.com"
 
     async def test_create_person_posts_to_correct_endpoint(self, mock_client: AsyncMock) -> None:
         mock_client.post.return_value = load_fixture("create_person.json")

@@ -52,40 +52,49 @@ def make_mcp():
 
 
 class TestSearchPeopleToolBody:
-    async def test_calls_api_and_returns_results(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {
-                "type": "Person",
-                "id": "1001",
-                "attributes": {
-                    "first_name": "Alice",
-                    "last_name": "Smith",
-                    "email_addresses": [{"address": "alice@example.com"}],
-                    "phone_numbers": [],
-                    "membership": "Member",
-                    "status": "active",
-                },
-            }
-        ]
+    async def test_calls_api_and_returns_envelope(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {
+                    "type": "Person",
+                    "id": "1001",
+                    "attributes": {
+                        "first_name": "Alice",
+                        "last_name": "Smith",
+                        "email_addresses": [{"address": "alice@example.com"}],
+                        "phone_numbers": [],
+                        "membership": "Member",
+                        "status": "active",
+                    },
+                }
+            ],
+            total_count=1,
+            truncated=False,
+        )
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "search_people")
-        results = await fn(name="Alice")
-        assert len(results) == 1
-        assert results[0]["first_name"] == "Alice"
+        result = await fn(name="Alice")
+        assert len(result["items"]) == 1
+        assert result["items"][0]["first_name"] == "Alice"
+        assert result["meta"]["total_count"] == 1
 
     async def test_search_with_email(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = []
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(items=[], total_count=0, truncated=False)
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "search_people")
-        results = await fn(email="alice@example.com")
-        assert results == []
+        result = await fn(email="alice@example.com")
+        assert result["items"] == []
+        assert result["meta"]["total_count"] == 0
 
     async def test_search_with_phone(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = []
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(items=[], total_count=0, truncated=False)
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "search_people")
-        results = await fn(phone="555-0101")
-        assert results == []
+        result = await fn(phone="555-0101")
+        assert result["items"] == []
 
 
 class TestGetPersonToolBody:
@@ -112,46 +121,57 @@ class TestGetPersonToolBody:
 
 
 class TestListListsToolBody:
-    async def test_list_lists_returns_lists(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {
-                "type": "List",
-                "id": "10",
-                "attributes": {
-                    "name": "Volunteers",
-                    "description": "All volunteers",
-                    "total_count": 45,
-                },
-            }
-        ]
+    async def test_list_lists_returns_envelope(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {
+                    "type": "List",
+                    "id": "10",
+                    "attributes": {
+                        "name": "Volunteers",
+                        "description": "All volunteers",
+                        "total_count": 45,
+                    },
+                }
+            ],
+            total_count=1,
+            truncated=False,
+        )
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_lists")
-        lists = await fn()
-        assert len(lists) == 1
-        assert lists[0]["name"] == "Volunteers"
+        result = await fn()
+        assert len(result["items"]) == 1
+        assert result["items"][0]["name"] == "Volunteers"
+        assert result["meta"]["total_count"] == 1
 
 
 class TestGetListMembersToolBody:
     async def test_get_list_members(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {
-                "type": "Person",
-                "id": "1001",
-                "attributes": {
-                    "first_name": "Alice",
-                    "last_name": "Smith",
-                    "email_addresses": [],
-                    "phone_numbers": [],
-                    "membership": "Member",
-                    "status": "active",
-                },
-            }
-        ]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {
+                    "type": "Person",
+                    "id": "1001",
+                    "attributes": {
+                        "first_name": "Alice",
+                        "last_name": "Smith",
+                        "email_addresses": [],
+                        "phone_numbers": [],
+                        "membership": "Member",
+                        "status": "active",
+                    },
+                }
+            ],
+            total_count=1,
+            truncated=False,
+        )
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "get_list_members")
-        members = await fn(list_id="42")
-        assert len(members) == 1
-        assert members[0]["first_name"] == "Alice"
+        result = await fn(list_id="42")
+        assert len(result["items"]) == 1
+        assert result["items"][0]["first_name"] == "Alice"
 
 
 class TestCreatePersonToolBody:
@@ -300,10 +320,20 @@ class TestUpdateAddressToolBody:
 
 class TestListPersonDetailsToolBody:
     async def test_list_person_details(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
         mock_client.get_all.side_effect = [
-            [{"type": "Email", "id": "2001", "attributes": {"address": "a@b.com", "location": "Home", "primary": True}}],
-            [{"type": "PhoneNumber", "id": "3001", "attributes": {"number": "555", "carrier": None, "location": "Mobile", "primary": True}}],
-            [{"type": "Address", "id": "4001", "attributes": {"street": "123 St", "city": "Town", "state": "IL", "zip": "60000", "location": "Home", "primary": True}}],
+            PagedResult(
+                items=[{"type": "Email", "id": "2001", "attributes": {"address": "a@b.com", "location": "Home", "primary": True}}],
+                total_count=1, truncated=False,
+            ),
+            PagedResult(
+                items=[{"type": "PhoneNumber", "id": "3001", "attributes": {"number": "555", "carrier": None, "location": "Mobile", "primary": True}}],
+                total_count=1, truncated=False,
+            ),
+            PagedResult(
+                items=[{"type": "Address", "id": "4001", "attributes": {"street": "123 St", "city": "Town", "state": "IL", "zip": "60000", "location": "Home", "primary": True}}],
+                total_count=1, truncated=False,
+            ),
         ]
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_person_details")
@@ -311,6 +341,8 @@ class TestListPersonDetailsToolBody:
         assert "emails" in details
         assert "phone_numbers" in details
         assert "addresses" in details
+        assert "items" not in details
+        assert "meta" not in details
 
 
 class TestAddNoteToolBody:
@@ -326,14 +358,19 @@ class TestAddNoteToolBody:
 
 class TestListNotesToolBody:
     async def test_list_notes(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {"type": "Note", "id": "5001", "attributes": {"note": "A note.", "created_at": "2026-04-13T10:00:00Z", "note_category_id": "100"}}
-        ]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {"type": "Note", "id": "5001", "attributes": {"note": "A note.", "created_at": "2026-04-13T10:00:00Z", "note_category_id": "100"}}
+            ],
+            total_count=1,
+            truncated=False,
+        )
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_notes")
-        notes = await fn(person_id="1001")
-        assert len(notes) == 1
-        assert notes[0]["note"] == "A note."
+        result = await fn(person_id="1001")
+        assert len(result["items"]) == 1
+        assert result["items"][0]["note"] == "A note."
 
 
 class TestAddBlockoutToolBody:
@@ -365,14 +402,19 @@ class TestUpdatePhoneNumberToolBody:
 
 class TestListWorkflowsToolBody:
     async def test_list_workflows(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {"type": "Workflow", "id": "7001", "attributes": {"name": "New Member Follow-up", "completed_card_count": 12, "ready_card_count": 3, "total_cards_count": 15}}
-        ]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {"type": "Workflow", "id": "7001", "attributes": {"name": "New Member Follow-up", "completed_card_count": 12, "ready_card_count": 3, "total_cards_count": 15}}
+            ],
+            total_count=1,
+            truncated=False,
+        )
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_workflows")
-        workflows = await fn()
-        assert len(workflows) == 1
-        assert workflows[0]["name"] == "New Member Follow-up"
+        result = await fn()
+        assert len(result["items"]) == 1
+        assert result["items"][0]["name"] == "New Member Follow-up"
 
 
 class TestAddPersonToWorkflowToolBody:

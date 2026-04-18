@@ -1,6 +1,7 @@
 import logging
 from typing import Any
 
+from pco_mcp.pco._envelope import make_envelope, merge_filters
 from pco_mcp.pco.client import PCOAPIError, PCOClient
 
 logger = logging.getLogger(__name__)
@@ -17,11 +18,17 @@ class PeopleAPI:
         name: str | None = None,
         email: str | None = None,
         phone: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Search for people. Returns simplified records."""
-        params: dict[str, Any] = {}
-        if name:
-            params["where[search_name]"] = name
+    ) -> dict[str, Any]:
+        """Search for people by name/email/phone. Returns envelope ``{items, meta}``.
+
+        Uses PCO's ``search_name_or_email`` param which matches both names and
+        email addresses with partial/fuzzy behavior. The ``phone`` param falls
+        back to the same search field — PCO's behavior may not always match
+        on phone, so verify returned records. When ``email`` and ``phone`` are
+        both supplied, ``email`` takes priority.
+        """
+        defaults: dict[str, Any] = {}
+        overrides: dict[str, Any] = {}
         if email and phone:
             import warnings
 
@@ -30,26 +37,36 @@ class PeopleAPI:
                 stacklevel=2,
             )
         if email:
-            params["where[search_name_or_email]"] = email
+            overrides["where[search_name_or_email]"] = email
         elif phone:
-            params["where[search_name_or_email]"] = phone
-        data = await self._client.get_all("/people/v2/people", params=params)
-        return [self._simplify_person(p) for p in data]
+            overrides["where[search_name_or_email]"] = phone
+        elif name:
+            overrides["where[search_name_or_email]"] = name
+        params = merge_filters(defaults, overrides)
+        result = await self._client.get_all("/people/v2/people", params=params)
+        simplified = [self._simplify_person(p) for p in result.items]
+        return make_envelope(result, simplified, params)
 
     async def get_person(self, person_id: str) -> dict[str, Any]:
-        """Get full details for a person by ID."""
-        result = await self._client.get(f"/people/v2/people/{person_id}")
-        return self._simplify_person(result["data"])
+        """Get full details for a person by ID (single-resource dict)."""
+        api_result = await self._client.get(f"/people/v2/people/{person_id}")
+        return self._simplify_person(api_result["data"])
 
-    async def list_lists(self) -> list[dict[str, Any]]:
-        """Get all PCO Lists."""
-        data = await self._client.get_all("/people/v2/lists")
-        return [self._simplify_list(lst) for lst in data]
+    async def list_lists(self) -> dict[str, Any]:
+        """Get all PCO Lists. Returns envelope ``{items, meta}``."""
+        params: dict[str, Any] = {}
+        result = await self._client.get_all("/people/v2/lists", params=params)
+        simplified = [self._simplify_list(lst) for lst in result.items]
+        return make_envelope(result, simplified, params)
 
-    async def get_list_members(self, list_id: str) -> list[dict[str, Any]]:
-        """Get people in a specific list."""
-        data = await self._client.get_all(f"/people/v2/lists/{list_id}/people")
-        return [self._simplify_person(p) for p in data]
+    async def get_list_members(self, list_id: str) -> dict[str, Any]:
+        """Get people in a specific list. Returns envelope ``{items, meta}``."""
+        params: dict[str, Any] = {}
+        result = await self._client.get_all(
+            f"/people/v2/lists/{list_id}/people", params=params,
+        )
+        simplified = [self._simplify_person(p) for p in result.items]
+        return make_envelope(result, simplified, params)
 
     async def create_person(
         self, first_name: str, last_name: str, email: str | None = None
@@ -257,21 +274,41 @@ class PeopleAPI:
         return self._simplify_address(result["data"])
 
     async def get_person_details(self, person_id: str) -> dict[str, Any]:
-        """Get all contact details for a person (emails, phones, addresses)."""
+        """Get all contact details for a person. Single-resource dict (no envelope).
+
+        Nested lists (emails, phone_numbers, addresses) are bare arrays —
+        they're part of the person's curated schema. If any of these internal
+        fetches hits the max_pages cap (very rare), a warning is logged but
+        not propagated to the caller.
+        """
         base = f"/people/v2/people/{person_id}"
-        emails = await self._client.get_all(f"{base}/emails")
-        phones = await self._client.get_all(f"{base}/phone_numbers")
-        addresses = await self._client.get_all(f"{base}/addresses")
+        emails_result = await self._client.get_all(f"{base}/emails")
+        phones_result = await self._client.get_all(f"{base}/phone_numbers")
+        addresses_result = await self._client.get_all(f"{base}/addresses")
+        for name, r in [
+            ("emails", emails_result),
+            ("phone_numbers", phones_result),
+            ("addresses", addresses_result),
+        ]:
+            if r.truncated:
+                logger.warning(
+                    "get_person_details %s for person_id=%s truncated at max_pages",
+                    name, person_id,
+                )
         return {
-            "emails": [self._simplify_email(e) for e in emails],
-            "phone_numbers": [self._simplify_phone(p) for p in phones],
-            "addresses": [self._simplify_address(a) for a in addresses],
+            "emails": [self._simplify_email(e) for e in emails_result.items],
+            "phone_numbers": [self._simplify_phone(p) for p in phones_result.items],
+            "addresses": [self._simplify_address(a) for a in addresses_result.items],
         }
 
-    async def get_person_blockouts(self, person_id: str) -> list[dict[str, Any]]:
-        """Get blockout dates for a person."""
-        data = await self._client.get_all(f"/people/v2/people/{person_id}/blockouts")
-        return [self._simplify_blockout(b) for b in data]
+    async def get_person_blockouts(self, person_id: str) -> dict[str, Any]:
+        """Get blockout dates for a person. Returns envelope ``{items, meta}``."""
+        params: dict[str, Any] = {}
+        result = await self._client.get_all(
+            f"/people/v2/people/{person_id}/blockouts", params=params,
+        )
+        simplified = [self._simplify_blockout(b) for b in result.items]
+        return make_envelope(result, simplified, params)
 
     async def add_blockout(
         self,
@@ -307,18 +344,21 @@ class PeopleAPI:
         result = await self._client.post(f"/people/v2/people/{person_id}/notes", data=payload)
         return self._simplify_note(result["data"])
 
-    async def get_notes(self, person_id: str) -> list[dict[str, Any]]:
-        """Get notes for a person (most recent first)."""
-        data = await self._client.get_all(
-            f"/people/v2/people/{person_id}/notes",
-            params={"order": "-created_at"},
+    async def get_notes(self, person_id: str) -> dict[str, Any]:
+        """Get notes for a person (most recent first). Returns envelope ``{items, meta}``."""
+        params: dict[str, Any] = {"order": "-created_at"}
+        result = await self._client.get_all(
+            f"/people/v2/people/{person_id}/notes", params=params,
         )
-        return [self._simplify_note(n) for n in data]
+        simplified = [self._simplify_note(n) for n in result.items]
+        return make_envelope(result, simplified, params)
 
-    async def get_workflows(self) -> list[dict[str, Any]]:
-        """List all workflows for the org."""
-        data = await self._client.get_all("/people/v2/workflows")
-        return [self._simplify_workflow(w) for w in data]
+    async def get_workflows(self) -> dict[str, Any]:
+        """List all workflows for the org. Returns envelope ``{items, meta}``."""
+        params: dict[str, Any] = {}
+        result = await self._client.get_all("/people/v2/workflows", params=params)
+        simplified = [self._simplify_workflow(w) for w in result.items]
+        return make_envelope(result, simplified, params)
 
     async def add_person_to_workflow(self, workflow_id: str, person_id: str) -> dict[str, Any]:
         """Add a person to a workflow (creates a card at the first step)."""
@@ -353,20 +393,46 @@ class PeopleAPI:
         }
 
     def _simplify_person(self, raw: dict[str, Any]) -> dict[str, Any]:
-        """Flatten a JSON:API person record into a simple dict."""
+        """Curated person record (curated-but-complete).
+
+        Kept: id, first_name, last_name, name, emails[] (all addresses),
+        phone_numbers[] (all numbers), membership, status, birthdate, gender,
+        created_at, avatar, site_administrator.
+        Dropped: JSON:API links, relationships, meta.
+        """
         attrs = raw.get("attributes", {})
-        emails = attrs.get("email_addresses", [])
-        phones = attrs.get("phone_numbers", [])
+        raw_emails = attrs.get("email_addresses") or []
+        raw_phones = attrs.get("phone_numbers") or []
         return {
             "id": raw["id"],
             "first_name": attrs.get("first_name", ""),
             "last_name": attrs.get("last_name", ""),
-            "email": emails[0]["address"] if emails else None,
-            "phone": phones[0]["number"] if phones else None,
+            "name": attrs.get("name") or (
+                f"{attrs.get('first_name', '')} {attrs.get('last_name', '')}".strip()
+            ),
+            "emails": [
+                {
+                    "address": e.get("address", ""),
+                    "location": e.get("location"),
+                    "primary": e.get("primary", False),
+                }
+                for e in raw_emails
+            ],
+            "phone_numbers": [
+                {
+                    "number": p.get("number", ""),
+                    "location": p.get("location"),
+                    "primary": p.get("primary", False),
+                }
+                for p in raw_phones
+            ],
             "membership": attrs.get("membership"),
             "status": attrs.get("status"),
             "birthdate": attrs.get("birthdate"),
             "gender": attrs.get("gender"),
+            "created_at": attrs.get("created_at"),
+            "avatar": attrs.get("avatar"),
+            "site_administrator": attrs.get("site_administrator"),
         }
 
     def _simplify_list(self, raw: dict[str, Any]) -> dict[str, Any]:

@@ -444,31 +444,40 @@ class TestSafeToolCallExceptions:
 class TestGetPersonBlockoutsToolBody:
     @pytest.mark.asyncio
     async def test_get_person_blockouts(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {
-                "type": "Blockout",
-                "id": "700",
-                "attributes": {
-                    "reason": "Vacation",
-                    "starts_at": "2026-05-01T00:00:00Z",
-                    "ends_at": "2026-05-07T00:00:00Z",
-                    "repeat_frequency": None,
-                },
-            }
-        ]
+        from pco_mcp.pco.client import PagedResult
+
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {
+                    "type": "Blockout",
+                    "id": "700",
+                    "attributes": {
+                        "reason": "Vacation",
+                        "starts_at": "2026-05-01T00:00:00Z",
+                        "ends_at": "2026-05-07T00:00:00Z",
+                        "repeat_frequency": None,
+                    },
+                }
+            ],
+            total_count=1,
+            truncated=False,
+        )
         mcp = make_people_mcp()
         fn = _get_tool_fn(mcp, "get_person_blockouts")
         result = await fn(person_id="1001")
-        assert len(result) == 1
-        assert result[0]["reason"] == "Vacation"
+        assert len(result["items"]) == 1
+        assert result["items"][0]["reason"] == "Vacation"
 
     @pytest.mark.asyncio
     async def test_get_person_blockouts_empty(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = []
+        from pco_mcp.pco.client import PagedResult
+
+        mock_client.get_all.return_value = PagedResult(items=[], total_count=0, truncated=False)
         mcp = make_people_mcp()
         fn = _get_tool_fn(mcp, "get_person_blockouts")
         result = await fn(person_id="1001")
-        assert result == []
+        assert result["items"] == []
+        assert result["meta"]["total_count"] == 0
 
 
 # ===========================================================================

@@ -22,24 +22,82 @@ def mock_client() -> PCOClient:
 
 class TestSearchPeople:
     async def test_search_by_name(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("search_people.json")["data"]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("search_people.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = PeopleAPI(mock_client)
-        results = await api.search_people(name="Alice")
+        result = await api.search_people(name="Alice")
         mock_client.get_all.assert_called_once()
         call_args = mock_client.get_all.call_args
         assert "/people/v2/people" in call_args.args[0]
-        assert len(results) == 2
-        assert results[0]["first_name"] == "Alice"
+        assert len(result["items"]) == 2
+        assert result["items"][0]["first_name"] == "Alice"
+
+    async def test_returns_envelope(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("search_people.json")["data"],
+            total_count=2, truncated=False,
+        )
+        api = PeopleAPI(mock_client)
+        result = await api.search_people(name="Alice")
+        assert "items" in result
+        assert "meta" in result
+        assert result["meta"]["total_count"] == 2
+
+    async def test_filters_applied_reports_search(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(items=[], total_count=0, truncated=False)
+        api = PeopleAPI(mock_client)
+        result = await api.search_people(name="Alice")
+        assert result["meta"]["filters_applied"].get("where[search_name_or_email]") == "Alice"
 
     async def test_search_returns_simplified_records(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("search_people.json")["data"]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("search_people.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = PeopleAPI(mock_client)
-        results = await api.search_people(name="Alice")
-        record = results[0]
+        result = await api.search_people(name="Alice")
+        record = result["items"][0]
         assert "id" in record
         assert "first_name" in record
         assert "last_name" in record
-        assert "email" in record
+        assert "emails" in record
+
+
+class TestSimplifyPersonCompleteness:
+    async def test_returns_all_emails_and_phones(self, mock_client: AsyncMock) -> None:
+        """A person with multiple emails/phones must return them all as arrays."""
+        from pco_mcp.pco.client import PagedResult
+        raw = {
+            "type": "Person",
+            "id": "1",
+            "attributes": {
+                "first_name": "Alice",
+                "last_name": "Smith",
+                "email_addresses": [
+                    {"address": "a@example.com", "location": "Home", "primary": True},
+                    {"address": "a@work.com", "location": "Work", "primary": False},
+                ],
+                "phone_numbers": [
+                    {"number": "555-0001", "location": "Mobile", "primary": True},
+                    {"number": "555-0002", "location": "Home", "primary": False},
+                ],
+            },
+        }
+        mock_client.get_all.return_value = PagedResult(items=[raw], total_count=1, truncated=False)
+        api = PeopleAPI(mock_client)
+        result = await api.search_people(name="Alice")
+        person = result["items"][0]
+        assert len(person["emails"]) == 2
+        assert person["emails"][0]["address"] == "a@example.com"
+        assert person["emails"][1]["address"] == "a@work.com"
+        assert len(person["phone_numbers"]) == 2
+        assert person["phone_numbers"][0]["number"] == "555-0001"
 
 
 class TestGetPerson:
@@ -53,13 +111,20 @@ class TestGetPerson:
 
 
 class TestListLists:
-    async def test_returns_lists(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("list_lists.json")["data"]
+    async def test_returns_envelope(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("list_lists.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = PeopleAPI(mock_client)
-        lists = await api.list_lists()
-        assert len(lists) == 2
-        assert lists[0]["name"] == "Volunteers"
-        assert lists[0]["total_count"] == 45
+        result = await api.list_lists()
+        assert "items" in result
+        assert "meta" in result
+        assert result["meta"]["total_count"] == 2
+        assert len(result["items"]) == 2
+        assert result["items"][0]["name"] == "Volunteers"
+        assert result["items"][0]["total_count"] == 45
 
 
 class TestSimplifyPersonIncludesBirthdateGender:
@@ -79,37 +144,55 @@ class TestSimplifyPersonIncludesBirthdateGender:
 
 
 class TestGetPersonBlockouts:
-    async def test_returns_blockouts(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("get_person_blockouts.json")["data"]
+    async def test_returns_envelope(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("get_person_blockouts.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = PeopleAPI(mock_client)
-        blockouts = await api.get_person_blockouts("1001")
-        assert len(blockouts) == 2
-        assert blockouts[0]["description"] == "Vacation"
-        assert blockouts[0]["reason"] == "Out of town"
-        assert blockouts[1]["repeat_frequency"] == "weekly"
+        result = await api.get_person_blockouts("1001")
+        assert "items" in result
+        assert "meta" in result
+        assert result["meta"]["total_count"] == 2
+        assert len(result["items"]) == 2
+        assert result["items"][0]["description"] == "Vacation"
+        assert result["items"][0]["reason"] == "Out of town"
+        assert result["items"][1]["repeat_frequency"] == "weekly"
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("get_person_blockouts.json")["data"]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("get_person_blockouts.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = PeopleAPI(mock_client)
         await api.get_person_blockouts("1001")
-        mock_client.get_all.assert_called_once_with("/people/v2/people/1001/blockouts")
+        call_path = mock_client.get_all.call_args.args[0]
+        assert "/people/v2/people/1001/blockouts" in call_path
 
     async def test_blockout_has_expected_fields(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("get_person_blockouts.json")["data"]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("get_person_blockouts.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = PeopleAPI(mock_client)
-        blockouts = await api.get_person_blockouts("1001")
-        b = blockouts[0]
+        result = await api.get_person_blockouts("1001")
+        b = result["items"][0]
         assert "id" in b
         assert "description" in b
         assert "starts_at" in b
         assert "ends_at" in b
         assert "repeat_frequency" in b
 
-    async def test_returns_empty_list_when_no_blockouts(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = []
+    async def test_returns_empty_envelope_when_no_blockouts(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(items=[], total_count=0, truncated=False)
         api = PeopleAPI(mock_client)
-        blockouts = await api.get_person_blockouts("9999")
-        assert blockouts == []
+        result = await api.get_person_blockouts("9999")
+        assert result["items"] == []
+        assert result["meta"]["total_count"] == 0
 
 
 class TestAddEmail:
@@ -242,14 +325,20 @@ class TestUpdateAddress:
 
 
 class TestGetPersonDetails:
-    async def test_returns_unified_contact_details(self, mock_client: AsyncMock) -> None:
+    async def test_returns_single_resource_dict(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
         mock_client.get_all.side_effect = [
-            load_fixture("list_emails.json")["data"],
-            load_fixture("list_phone_numbers.json")["data"],
-            load_fixture("list_addresses.json")["data"],
+            PagedResult(items=load_fixture("list_emails.json")["data"], total_count=1, truncated=False),
+            PagedResult(items=load_fixture("list_phone_numbers.json")["data"], total_count=1, truncated=False),
+            PagedResult(items=load_fixture("list_addresses.json")["data"], total_count=1, truncated=False),
         ]
         api = PeopleAPI(mock_client)
         details = await api.get_person_details("1001")
+        assert "emails" in details
+        assert "phone_numbers" in details
+        assert "addresses" in details
+        assert "items" not in details  # NOT an envelope
+        assert "meta" not in details
         assert len(details["emails"]) == 1
         assert details["emails"][0]["address"] == "alice@example.com"
         assert len(details["phone_numbers"]) == 1
@@ -258,10 +347,11 @@ class TestGetPersonDetails:
         assert details["addresses"][0]["city"] == "Springfield"
 
     async def test_calls_three_endpoints(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
         mock_client.get_all.side_effect = [
-            load_fixture("list_emails.json")["data"],
-            load_fixture("list_phone_numbers.json")["data"],
-            load_fixture("list_addresses.json")["data"],
+            PagedResult(items=load_fixture("list_emails.json")["data"], total_count=1, truncated=False),
+            PagedResult(items=load_fixture("list_phone_numbers.json")["data"], total_count=1, truncated=False),
+            PagedResult(items=load_fixture("list_addresses.json")["data"], total_count=1, truncated=False),
         ]
         api = PeopleAPI(mock_client)
         await api.get_person_details("1001")
@@ -300,21 +390,40 @@ class TestAddNote:
 
 
 class TestGetNotes:
-    async def test_returns_notes_list(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("list_notes.json")["data"]
+    async def test_returns_envelope(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("list_notes.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = PeopleAPI(mock_client)
-        notes = await api.get_notes("1001")
-        assert len(notes) == 2
-        assert notes[0]["note"] == "Had a great conversation about volunteering."
-        assert notes[1]["id"] == "5002"
+        result = await api.get_notes("1001")
+        assert "items" in result
+        assert "meta" in result
+        assert result["meta"]["total_count"] == 2
+        assert len(result["items"]) == 2
+        assert result["items"][0]["note"] == "Had a great conversation about volunteering."
+        assert result["items"][1]["id"] == "5002"
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("list_notes.json")["data"]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("list_notes.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = PeopleAPI(mock_client)
         await api.get_notes("1001")
         call_path = mock_client.get_all.call_args.args[0]
         assert "1001" in call_path
         assert "/notes" in call_path
+
+    async def test_order_param_preserved(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(items=[], total_count=0, truncated=False)
+        api = PeopleAPI(mock_client)
+        await api.get_notes("1001")
+        call_kwargs = mock_client.get_all.call_args.kwargs
+        assert call_kwargs["params"].get("order") == "-created_at"
 
 
 class TestAddBlockout:
@@ -376,17 +485,28 @@ class TestUpdatePhoneNumber:
 
 
 class TestGetWorkflows:
-    async def test_returns_workflows(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("list_workflows.json")["data"]
+    async def test_returns_envelope(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("list_workflows.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = PeopleAPI(mock_client)
-        workflows = await api.get_workflows()
-        assert len(workflows) == 2
-        assert workflows[0]["name"] == "New Member Follow-up"
-        assert workflows[0]["ready_card_count"] == 3
-        assert workflows[1]["name"] == "Baptism Prep"
+        result = await api.get_workflows()
+        assert "items" in result
+        assert "meta" in result
+        assert result["meta"]["total_count"] == 2
+        assert len(result["items"]) == 2
+        assert result["items"][0]["name"] == "New Member Follow-up"
+        assert result["items"][0]["ready_card_count"] == 3
+        assert result["items"][1]["name"] == "Baptism Prep"
 
     async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("list_workflows.json")["data"]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=load_fixture("list_workflows.json")["data"],
+            total_count=2, truncated=False,
+        )
         api = PeopleAPI(mock_client)
         await api.get_workflows()
         call_path = mock_client.get_all.call_args.args[0]

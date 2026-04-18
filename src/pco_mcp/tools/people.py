@@ -13,11 +13,23 @@ def register_people_tools(mcp: FastMCP) -> None:
         name: str | None = None,
         email: str | None = None,
         phone: str | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> dict[str, Any]:
         """Search for people in Planning Center by name, email, or phone number.
 
-        Returns a list of matching people with their basic info (name, email, phone,
-        membership status). Use get_person with a specific ID for full details.
+        Returns an envelope ``{items, meta}``. Each person record includes
+        ``emails[]`` and ``phone_numbers[]`` as arrays (all addresses /
+        numbers — no silent drop of secondary contacts), plus membership,
+        status, birthdate, gender, and other core fields.
+
+        Note on search semantics: this uses PCO's fuzzy ``search_name_or_email``
+        filter — NOT a pure substring match. It's reasonably forgiving for
+        names and email fragments. The ``phone`` param falls back to the same
+        filter and may be unreliable; verify returned records against the
+        intended phone number.
+
+        ``meta.total_count`` reflects server-reported total; ``meta.truncated``
+        indicates pagination was capped. ``meta.filters_applied`` echoes the
+        actual scoping filters sent to PCO.
         """
         from pco_mcp.tools._context import get_people_api, safe_tool_call
 
@@ -28,8 +40,9 @@ def register_people_tools(mcp: FastMCP) -> None:
     async def get_person(person_id: str) -> dict[str, Any]:
         """Get full details for a specific person by their Planning Center ID.
 
-        Returns detailed info including name, email, phone, membership, status,
-        birthdate, and gender.
+        Returns a single-resource dict (not an envelope) with name, all
+        ``emails[]``, all ``phone_numbers[]``, membership, status, birthdate,
+        gender, created_at, avatar, and site_administrator.
         """
         from pco_mcp.tools._context import get_people_api, safe_tool_call
 
@@ -37,10 +50,11 @@ def register_people_tools(mcp: FastMCP) -> None:
         return await safe_tool_call(api.get_person(person_id))
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def list_lists() -> list[dict[str, Any]]:
+    async def list_lists() -> dict[str, Any]:
         """Get all lists (smart groups, tags) from Planning Center People.
 
-        Returns each list's name, description, and member count.
+        Returns an envelope ``{items, meta}`` — each list's name, description,
+        and member count. ``meta.truncated`` indicates pagination was capped.
         """
         from pco_mcp.tools._context import get_people_api, safe_tool_call
 
@@ -48,10 +62,12 @@ def register_people_tools(mcp: FastMCP) -> None:
         return await safe_tool_call(api.list_lists())
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def get_list_members(list_id: str) -> list[dict[str, Any]]:
+    async def get_list_members(list_id: str) -> dict[str, Any]:
         """Get all people in a specific Planning Center list.
 
-        Provide the list ID (from list_lists). Returns people with basic info.
+        Provide the list ID (from list_lists). Returns an envelope
+        ``{items, meta}`` — each item has all ``emails[]`` and
+        ``phone_numbers[]``. Large lists may trigger ``meta.truncated``.
         """
         from pco_mcp.tools._context import get_people_api, safe_tool_call
 
@@ -222,18 +238,24 @@ def register_people_tools(mcp: FastMCP) -> None:
     @mcp.tool(annotations=READ_ANNOTATIONS)
     async def list_person_details(person_id: str) -> dict[str, Any]:
         """Get all contact details for a person — emails, phone numbers,
-        and addresses in a single call."""
+        and addresses in a single call.
+
+        Returns a single-resource dict with ``emails[]``, ``phone_numbers[]``,
+        and ``addresses[]`` as bare arrays (part of the person's curated
+        schema — NOT a list envelope).
+        """
         from pco_mcp.tools._context import get_people_api, safe_tool_call
 
         api = get_people_api()
         return await safe_tool_call(api.get_person_details(person_id))
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def get_person_blockouts(person_id: str) -> list[dict[str, Any]]:
+    async def get_person_blockouts(person_id: str) -> dict[str, Any]:
         """Check a person's unavailability / blockout dates.
 
-        Shows when they can't serve, including recurring blockouts.
-        Use before scheduling to avoid conflicts.
+        Returns an envelope ``{items, meta}``. Shows when they can't serve,
+        including recurring blockouts. Use before scheduling to avoid
+        conflicts.
         """
         from pco_mcp.tools._context import get_people_api, safe_tool_call
 
@@ -281,17 +303,23 @@ def register_people_tools(mcp: FastMCP) -> None:
         )
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def list_notes(person_id: str) -> list[dict[str, Any]]:
-        """List notes on a person's record, most recent first (up to 50)."""
+    async def list_notes(person_id: str) -> dict[str, Any]:
+        """List notes on a person's record, most recent first.
+
+        Returns an envelope ``{items, meta}``. Paginates through all notes —
+        ``meta.truncated`` fires only if the person has more notes than the
+        internal pagination cap.
+        """
         from pco_mcp.tools._context import get_people_api, safe_tool_call
 
         api = get_people_api()
         return await safe_tool_call(api.get_notes(person_id))
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def list_workflows() -> list[dict[str, Any]]:
+    async def list_workflows() -> dict[str, Any]:
         """List all workflows in the org (e.g., 'New Member Follow-up',
-        'Baptism Prep'). Shows card counts for each workflow."""
+        'Baptism Prep'). Returns an envelope ``{items, meta}`` — each item
+        includes card counts for the workflow."""
         from pco_mcp.tools._context import get_people_api, safe_tool_call
 
         api = get_people_api()
