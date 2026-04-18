@@ -26,12 +26,21 @@ class PeopleAPI:
     ) -> dict[str, Any]:
         """Search for people by name/email/phone. Returns envelope ``{items, meta}``.
 
-        Uses PCO's ``search_name_or_email`` param which matches both names and
-        email addresses with partial/fuzzy behavior. The ``phone`` param falls
-        back to the same search field — PCO's behavior may not always match
-        on phone, so verify returned records. When ``email`` and ``phone`` are
-        both supplied, ``email`` takes priority.
+        Routing (mutually exclusive; if multiple supplied, the first wins):
+
+        - ``email`` -> ``where[search_name_or_email]`` (PCO's fuzzy-ish
+          name-or-email filter).
+        - ``phone`` -> ``where[search_phone_number_e164]`` when the input
+          looks like E.164 (starts with ``+`` and has 8-15 digits, e.g.
+          ``+15551234567``); otherwise ``where[search_phone_number]`` for
+          partial matching (e.g. ``555-1234``).
+        - ``name`` -> ``where[search_name_or_email]``.
+
+        When both ``email`` and ``phone`` are supplied, ``email`` takes
+        priority and a warning is emitted.
         """
+        import re
+
         defaults: dict[str, Any] = {"include": "emails,phone_numbers"}
         overrides: dict[str, Any] = {}
         if email and phone:
@@ -44,7 +53,12 @@ class PeopleAPI:
         if email:
             overrides["where[search_name_or_email]"] = email
         elif phone:
-            overrides["where[search_name_or_email]"] = phone
+            # Real phone-search filters. E.164 format (starts with +) gets
+            # the exact-match filter; everything else gets partial match.
+            if re.match(r"^\+\d{8,15}$", phone.strip()):
+                overrides["where[search_phone_number_e164]"] = phone.strip()
+            else:
+                overrides["where[search_phone_number]"] = phone
         elif name:
             overrides["where[search_name_or_email]"] = name
         params = merge_filters(defaults, overrides)

@@ -21,11 +21,19 @@ def register_people_tools(mcp: FastMCP) -> None:
         numbers — no silent drop of secondary contacts), plus membership,
         status, birthdate, gender, and other core fields.
 
-        Note on search semantics: this uses PCO's fuzzy ``search_name_or_email``
-        filter — NOT a pure substring match. It's reasonably forgiving for
-        names and email fragments. The ``phone`` param falls back to the same
-        filter and may be unreliable; verify returned records against the
-        intended phone number.
+        Search semantics (each param routes to a different PCO filter):
+
+        - ``name`` and ``email`` -> PCO's fuzzy-ish ``search_name_or_email``
+          filter (NOT a pure substring match, but reasonably forgiving).
+        - ``phone`` -> a real phone-search filter. Inputs matching E.164
+          format (starts with ``+`` and has 8-15 digits, e.g. ``+15551234567``)
+          are routed to ``search_phone_number_e164`` for exact matching;
+          other formats (e.g. ``555-1234``, ``(555) 123-4567``) go to
+          ``search_phone_number`` for partial matching.
+
+        If multiple params are supplied, the first non-None among
+        ``email, phone, name`` wins. When both ``email`` and ``phone`` are
+        supplied, ``email`` takes priority and a warning is emitted.
 
         ``meta.total_count`` reflects server-reported total; ``meta.truncated``
         indicates pagination was capped. ``meta.filters_applied`` echoes the

@@ -97,6 +97,36 @@ class TestSearchPeople:
         assert bob["emails"][0]["address"] == "bob@example.com"
         assert bob["phone_numbers"] == []
 
+    async def test_phone_e164_format_routes_to_e164_filter(self, mock_client: AsyncMock) -> None:
+        """E.164-formatted phone (starts with +, 8-15 digits) routes to the
+        exact-match where[search_phone_number_e164] filter."""
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(items=[], total_count=0, truncated=False)
+        api = PeopleAPI(mock_client)
+        result = await api.search_people(phone="+15551234567")
+        call_params = mock_client.get_all.call_args.kwargs["params"]
+        assert call_params.get("where[search_phone_number_e164]") == "+15551234567"
+        assert "where[search_phone_number]" not in call_params
+        assert "where[search_name_or_email]" not in call_params
+        assert result["meta"]["filters_applied"].get(
+            "where[search_phone_number_e164]"
+        ) == "+15551234567"
+
+    async def test_phone_non_e164_routes_to_search_phone_number(self, mock_client: AsyncMock) -> None:
+        """Non-E.164 phone formats route to the partial-match
+        where[search_phone_number] filter."""
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(items=[], total_count=0, truncated=False)
+        api = PeopleAPI(mock_client)
+        result = await api.search_people(phone="555-1234")
+        call_params = mock_client.get_all.call_args.kwargs["params"]
+        assert call_params.get("where[search_phone_number]") == "555-1234"
+        assert "where[search_phone_number_e164]" not in call_params
+        assert "where[search_name_or_email]" not in call_params
+        assert result["meta"]["filters_applied"].get(
+            "where[search_phone_number]"
+        ) == "555-1234"
+
 
 class TestSimplifyPersonCompleteness:
     async def test_returns_all_emails_and_phones(self, mock_client: AsyncMock) -> None:
