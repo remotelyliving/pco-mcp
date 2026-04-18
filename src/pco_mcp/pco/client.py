@@ -1,9 +1,33 @@
 import logging
+from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PagedResult:
+    """Result of a paginated PCO fetch. Behaves list-like for backwards compat.
+
+    - items: raw JSON:API records collected across pages
+    - total_count: from meta.total_count when PCO supplies it (may be None)
+    - truncated: True if max_pages cap fired while more data was available
+    """
+
+    items: list[Any] = field(default_factory=list)
+    total_count: int | None = None
+    truncated: bool = False
+
+    def __iter__(self):
+        return iter(self.items)
+
+    def __len__(self) -> int:
+        return len(self.items)
+
+    def __getitem__(self, index):
+        return self.items[index]
 
 
 class PCOAPIError(Exception):
