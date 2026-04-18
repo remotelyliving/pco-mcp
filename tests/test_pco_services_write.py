@@ -55,29 +55,50 @@ class TestGetPlanDetails:
 
 
 class TestListTeamMembers:
-    async def test_returns_team_members(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("list_team_members.json")["data"]
+    async def test_returns_envelope(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        fixture = load_fixture("list_team_members.json")
+        mock_client.get_all.return_value = PagedResult(
+            items=fixture["data"],
+            total_count=2, truncated=False,
+            included=fixture["included"],
+        )
         api = ServicesAPI(mock_client)
-        members = await api.list_team_members("201", "301")
-        assert len(members) == 2
-        assert members[0]["person_name"] == "Alice Smith"
-        assert members[0]["team_position_name"] == "Vocalist"
-        assert members[1]["person_name"] == "Bob Jones"
-
-    async def test_calls_correct_endpoint(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("list_team_members.json")["data"]
-        api = ServicesAPI(mock_client)
-        await api.list_team_members("201", "301")
+        result = await api.list_team_members("201", "301")
+        assert "items" in result
+        assert "meta" in result
+        assert result["meta"]["total_count"] == 2
         call_path = mock_client.get_all.call_args.args[0]
         assert "201" in call_path
         assert "301" in call_path
         assert "team_members" in call_path
 
-    async def test_returns_status_field(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = load_fixture("list_team_members.json")["data"]
+    async def test_curated_includes_person_id_and_name(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        fixture = load_fixture("list_team_members.json")
+        mock_client.get_all.return_value = PagedResult(
+            items=fixture["data"],
+            total_count=2, truncated=False,
+            included=fixture["included"],
+        )
         api = ServicesAPI(mock_client)
-        members = await api.list_team_members("201", "301")
-        assert "status" in members[0]
+        result = await api.list_team_members("201", "301")
+        tm = result["items"][0]
+        assert tm["person_id"] == "1001"
+        assert tm["person_name"] == "Alice Smith"
+        assert tm["team_position_id"] == "11"
+        assert tm["team_position_name"] == "Vocalist"
+        assert tm["status"] == "C"
+
+    async def test_passes_include_params(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(items=[], total_count=0, truncated=False)
+        api = ServicesAPI(mock_client)
+        await api.list_team_members("201", "301")
+        call_params = mock_client.get_all.call_args.kwargs["params"]
+        assert "include" in call_params
+        assert "person" in call_params["include"]
+        assert "team_position" in call_params["include"]
 
 
 class TestScheduleTeamMember:

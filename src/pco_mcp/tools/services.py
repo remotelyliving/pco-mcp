@@ -23,11 +23,13 @@ def register_services_tools(mcp: FastMCP) -> None:
         return await safe_tool_call(api.create_service_type(name, frequency=frequency))
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def list_service_types() -> list[dict[str, Any]]:
+    async def list_service_types() -> dict[str, Any]:
         """List all service types in Planning Center Services.
 
-        Returns service types like "Sunday Morning", "Wednesday Night", etc.
-        Use the returned ID with get_upcoming_plans to see scheduled services.
+        Returns an envelope ``{items, meta}``. Items are service types like
+        "Sunday Morning", "Wednesday Night", etc. Use an item's ``id`` with
+        ``get_upcoming_plans`` to see scheduled services. ``meta.total_count``
+        reflects the server total; ``meta.truncated`` signals pagination caps.
         """
         from pco_mcp.tools._context import get_services_api, safe_tool_call
 
@@ -35,15 +37,23 @@ def register_services_tools(mcp: FastMCP) -> None:
         return await safe_tool_call(api.list_service_types())
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def get_upcoming_plans(service_type_id: str) -> list[dict[str, Any]]:
-        """Get upcoming service plans for a specific service type.
+    async def get_upcoming_plans(
+        service_type_id: str, include_past: bool = False,
+    ) -> dict[str, Any]:
+        """Get service plans for a specific service type.
 
-        Returns future plans with dates, item counts, and needed positions.
+        Returns an envelope ``{items, meta}`` with each plan's dates, item
+        counts, and needed positions. Defaults to FUTURE plans ordered by
+        sort_date. Pass ``include_past=True`` to drop the future filter and
+        include historical plans too. ``meta.filters_applied`` reports the
+        active scoping (e.g. ``{"filter": "future"}`` by default).
         """
         from pco_mcp.tools._context import get_services_api, safe_tool_call
 
         api = get_services_api()
-        return await safe_tool_call(api.get_upcoming_plans(service_type_id))
+        return await safe_tool_call(
+            api.get_upcoming_plans(service_type_id, include_past=include_past)
+        )
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
     async def get_plan_details(service_type_id: str, plan_id: str) -> dict[str, Any]:
@@ -57,11 +67,17 @@ def register_services_tools(mcp: FastMCP) -> None:
         return await safe_tool_call(api.get_plan_details(service_type_id, plan_id))
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def list_songs(query: str | None = None) -> list[dict[str, Any]]:
-        """Search or list songs in the Planning Center song library.
+    async def list_songs(query: str | None = None) -> dict[str, Any]:
+        """List songs in the Planning Center song library.
 
-        Optionally filter by title. Returns song title, author, CCLI number,
-        and when it was last scheduled.
+        Returns an envelope ``{items, meta}`` — each item has title, author,
+        CCLI number, and when the song was last scheduled.
+
+        IMPORTANT: the ``query`` param is an EXACT-match title filter (PCO's
+        ``where[title]``). "Amazing" will NOT find "Amazing Grace". Pass the
+        complete song title to filter, or omit ``query`` entirely to fetch
+        the full library. For partial matching, omit ``query`` and filter
+        client-side on the returned items.
         """
         from pco_mcp.tools._context import get_services_api, safe_tool_call
 
@@ -69,10 +85,18 @@ def register_services_tools(mcp: FastMCP) -> None:
         return await safe_tool_call(api.list_songs(query=query))
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def list_team_members(service_type_id: str, plan_id: str) -> list[dict[str, Any]]:
-        """List team members and their positions for a service plan.
+    async def list_team_members(
+        service_type_id: str, plan_id: str,
+    ) -> dict[str, Any]:
+        """List team members and positions for a service plan.
 
-        Returns each team member's name, position, and status (confirmed/pending/declined).
+        Returns an envelope ``{items, meta}``. Each item carries the
+        PlanPerson id, status (C/U/D = confirmed/unconfirmed/declined),
+        notification_sent_at, plus ``person_id`` + ``person_name`` and
+        ``team_position_id`` + ``team_position_name`` — no follow-up lookup
+        needed. Names are sourced authoritatively from the included
+        Person/TeamPosition records (``include=person,team_position`` is
+        hard-coded server-side).
         """
         from pco_mcp.tools._context import get_services_api, safe_tool_call
 
@@ -99,10 +123,13 @@ def register_services_tools(mcp: FastMCP) -> None:
         )
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def list_plan_items(service_type_id: str, plan_id: str) -> list[dict[str, Any]]:
+    async def list_plan_items(
+        service_type_id: str, plan_id: str,
+    ) -> dict[str, Any]:
         """Get the ordered list of items (songs, elements) in a service plan.
 
-        Returns each item's title, type, sequence, and song ID.
+        Returns an envelope ``{items, meta}``. Each item carries title, type,
+        sequence, length, and song_id (when applicable).
         """
         from pco_mcp.tools._context import get_services_api, safe_tool_call
 
@@ -110,10 +137,11 @@ def register_services_tools(mcp: FastMCP) -> None:
         return await safe_tool_call(api.list_plan_items(service_type_id, plan_id))
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def list_teams(service_type_id: str) -> list[dict[str, Any]]:
+    async def list_teams(service_type_id: str) -> dict[str, Any]:
         """List all teams for a service type.
 
-        Returns team names, scheduling modes, and whether they're rehearsal teams.
+        Returns an envelope ``{items, meta}`` — each item has the team name,
+        scheduling mode, and whether it's a rehearsal team.
         """
         from pco_mcp.tools._context import get_services_api, safe_tool_call
 
@@ -121,10 +149,11 @@ def register_services_tools(mcp: FastMCP) -> None:
         return await safe_tool_call(api.list_teams(service_type_id))
 
     @mcp.tool(annotations=READ_ANNOTATIONS)
-    async def list_team_positions(team_id: str) -> list[dict[str, Any]]:
+    async def list_team_positions(team_id: str) -> dict[str, Any]:
         """List positions within a team (e.g., Lead Vocalist, Drums, Sound Tech).
 
-        Use to see what roles need to be filled.
+        Returns an envelope ``{items, meta}``. Use to see which roles exist
+        on a team so they can be filled via ``schedule_team_member``.
         """
         from pco_mcp.tools._context import get_services_api, safe_tool_call
 

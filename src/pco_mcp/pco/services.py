@@ -1,5 +1,6 @@
 from typing import Any
 
+from pco_mcp.pco._envelope import index_included, make_envelope, merge_filters
 from pco_mcp.pco.client import PCOClient
 
 
@@ -20,18 +21,33 @@ class ServicesAPI:
         result = await self._client.post("/services/v2/service_types", data=payload)
         return self._simplify_service_type(result["data"])
 
-    async def list_service_types(self) -> list[dict[str, Any]]:
-        """List all service types."""
-        data = await self._client.get_all("/services/v2/service_types")
-        return [self._simplify_service_type(st) for st in data]
+    async def list_service_types(self) -> dict[str, Any]:
+        """List all service types. Returns envelope ``{items, meta}``."""
+        params: dict[str, Any] = {}
+        result = await self._client.get_all("/services/v2/service_types", params=params)
+        simplified = [self._simplify_service_type(st) for st in result.items]
+        return make_envelope(result, simplified, params)
 
-    async def get_upcoming_plans(self, service_type_id: str) -> list[dict[str, Any]]:
-        """Get upcoming plans for a service type (all pages)."""
-        data = await self._client.get_all(
+    async def get_upcoming_plans(
+        self, service_type_id: str, include_past: bool = False,
+    ) -> dict[str, Any]:
+        """Get plans for a service type. Returns envelope ``{items, meta}``.
+
+        Defaults to future plans ordered by sort_date. Pass
+        ``include_past=True`` to drop the future filter and include history.
+        ``meta.filters_applied`` reports the active scoping.
+        """
+        defaults: dict[str, Any] = {"filter": "future", "order": "sort_date"}
+        overrides: dict[str, Any] = {}
+        if include_past:
+            overrides["filter"] = None
+        params = merge_filters(defaults, overrides)
+        result = await self._client.get_all(
             f"/services/v2/service_types/{service_type_id}/plans",
-            params={"filter": "future", "order": "sort_date"},
+            params=params,
         )
-        return [self._simplify_plan(p) for p in data]
+        simplified = [self._simplify_plan(p) for p in result.items]
+        return make_envelope(result, simplified, params)
 
     async def get_plan_details(self, service_type_id: str, plan_id: str) -> dict[str, Any]:
         """Get full details for a specific plan, including items and team members."""
@@ -44,25 +60,41 @@ class ServicesAPI:
         plan["team_members"] = [self._simplify_team_member(tm) for tm in team]
         return plan
 
-    async def list_songs(self, query: str | None = None) -> list[dict[str, Any]]:
-        """List/search songs in the library.
+    async def list_songs(self, query: str | None = None) -> dict[str, Any]:
+        """List/search songs. Returns envelope ``{items, meta}``.
 
-        Note: PCO's ``where[title]`` filter performs an exact match.
-        For partial/fuzzy matching, iterate client-side or omit the query
-        to fetch all songs.
+        NOTE: PCO's ``where[title]`` filter is an EXACT-match comparison —
+        "Amazing" will NOT find "Amazing Grace". Pass the full song title
+        to filter, or omit the query to fetch the entire library.
         """
-        params: dict[str, Any] = {}
+        defaults: dict[str, Any] = {}
+        overrides: dict[str, Any] = {}
         if query:
-            params["where[title]"] = query
-        data = await self._client.get_all("/services/v2/songs", params=params)
-        return [self._simplify_song(s) for s in data]
+            overrides["where[title]"] = query
+        params = merge_filters(defaults, overrides)
+        result = await self._client.get_all("/services/v2/songs", params=params)
+        simplified = [self._simplify_song(s) for s in result.items]
+        return make_envelope(result, simplified, params)
 
-    async def list_team_members(self, service_type_id: str, plan_id: str) -> list[dict[str, Any]]:
-        """List team members for a plan."""
-        data = await self._client.get_all(
-            f"/services/v2/service_types/{service_type_id}/plans/{plan_id}/team_members"
+    async def list_team_members(
+        self, service_type_id: str, plan_id: str,
+    ) -> dict[str, Any]:
+        """List team members for a plan. Returns envelope ``{items, meta}``.
+
+        Hard-codes ``include=person,team_position`` so each member's curated
+        record carries person_id, person_name, team_position_id, and
+        team_position_name directly (no follow-up lookup needed).
+        """
+        params: dict[str, Any] = {"include": "person,team_position"}
+        result = await self._client.get_all(
+            f"/services/v2/service_types/{service_type_id}/plans/{plan_id}/team_members",
+            params=params,
         )
-        return [self._simplify_team_member(tm) for tm in data]
+        included_idx = index_included(result.included)
+        simplified = [
+            self._simplify_team_member(tm, included_idx) for tm in result.items
+        ]
+        return make_envelope(result, simplified, params)
 
     async def schedule_team_member(
         self, service_type_id: str, plan_id: str, person_id: str, team_position_name: str
@@ -131,13 +163,16 @@ class ServicesAPI:
         return self._simplify_plan_time(result["data"])
 
     async def list_plan_items(
-        self, service_type_id: str, plan_id: str
-    ) -> list[dict[str, Any]]:
-        """List items (songs/elements) on a plan."""
-        data = await self._client.get_all(
-            f"/services/v2/service_types/{service_type_id}/plans/{plan_id}/items"
+        self, service_type_id: str, plan_id: str,
+    ) -> dict[str, Any]:
+        """List items (songs/elements) on a plan. Returns envelope ``{items, meta}``."""
+        params: dict[str, Any] = {}
+        result = await self._client.get_all(
+            f"/services/v2/service_types/{service_type_id}/plans/{plan_id}/items",
+            params=params,
         )
-        return [self._simplify_item(i) for i in data]
+        simplified = [self._simplify_item(i) for i in result.items]
+        return make_envelope(result, simplified, params)
 
     async def add_item_to_plan(
         self,
@@ -178,19 +213,25 @@ class ServicesAPI:
             f"/services/v2/service_types/{service_type_id}/plans/{plan_id}/items/{item_id}"
         )
 
-    async def list_teams(self, service_type_id: str) -> list[dict[str, Any]]:
-        """List teams for a service type."""
-        data = await self._client.get_all(
-            f"/services/v2/service_types/{service_type_id}/teams"
+    async def list_teams(self, service_type_id: str) -> dict[str, Any]:
+        """List teams for a service type. Returns envelope ``{items, meta}``."""
+        params: dict[str, Any] = {}
+        result = await self._client.get_all(
+            f"/services/v2/service_types/{service_type_id}/teams",
+            params=params,
         )
-        return [self._simplify_team(t) for t in data]
+        simplified = [self._simplify_team(t) for t in result.items]
+        return make_envelope(result, simplified, params)
 
-    async def list_team_positions(self, team_id: str) -> list[dict[str, Any]]:
-        """List positions for a team."""
-        data = await self._client.get_all(
-            f"/services/v2/teams/{team_id}/team_positions"
+    async def list_team_positions(self, team_id: str) -> dict[str, Any]:
+        """List positions for a team. Returns envelope ``{items, meta}``."""
+        params: dict[str, Any] = {}
+        result = await self._client.get_all(
+            f"/services/v2/teams/{team_id}/team_positions",
+            params=params,
         )
-        return [self._simplify_position(p) for p in data]
+        simplified = [self._simplify_position(p) for p in result.items]
+        return make_envelope(result, simplified, params)
 
     async def remove_team_member(
         self, service_type_id: str, plan_id: str, team_member_id: str
@@ -587,15 +628,51 @@ class ServicesAPI:
             "last_scheduled_at": attrs.get("last_scheduled_at"),
         }
 
-    def _simplify_team_member(self, raw: dict[str, Any]) -> dict[str, Any]:
+    def _simplify_team_member(
+        self,
+        raw: dict[str, Any],
+        included_index: dict[tuple[str, str], dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Curated team_member record.
+
+        Kept: id, status, notification_sent_at, person_name, person_id,
+        team_position_name, team_position_id.
+        When ``included_index`` is supplied (list path with
+        include=person,team_position), person_name and team_position_name are
+        authoritative from the included records. When not (write path — e.g.
+        ``schedule_team_member`` response), they come from ``attributes.name``
+        and ``attributes.team_position_name``; person_id/team_position_id come
+        from the relationships refs when present.
+        """
         attrs = raw.get("attributes", {})
-        return {
+        rels = raw.get("relationships", {})
+        simplified: dict[str, Any] = {
             "id": raw["id"],
             "person_name": attrs.get("name", ""),
             "team_position_name": attrs.get("team_position_name"),
             "status": attrs.get("status"),
             "notification_sent_at": attrs.get("notification_sent_at"),
         }
+        person_ref = rels.get("person", {}).get("data")
+        if person_ref:
+            simplified["person_id"] = person_ref.get("id")
+            if included_index:
+                person = included_index.get((person_ref["type"], person_ref["id"]))
+                if person:
+                    pattrs = person.get("attributes", {})
+                    simplified["person_name"] = (
+                        f"{pattrs.get('first_name', '')} {pattrs.get('last_name', '')}".strip()
+                    )
+        position_ref = rels.get("team_position", {}).get("data")
+        if position_ref:
+            simplified["team_position_id"] = position_ref.get("id")
+            if included_index:
+                position = included_index.get(
+                    (position_ref["type"], position_ref["id"])
+                )
+                if position:
+                    simplified["team_position_name"] = position.get("attributes", {}).get("name")
+        return simplified
 
     def _simplify_item(self, raw: dict[str, Any]) -> dict[str, Any]:
         attrs = raw.get("attributes", {})

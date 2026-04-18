@@ -489,70 +489,82 @@ class TestGetPersonBlockoutsToolBody:
 class TestListPlanItemsToolBody:
     @pytest.mark.asyncio
     async def test_list_plan_items(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {
-                "type": "Item",
-                "id": "800",
-                "attributes": {
-                    "title": "Opening Song",
-                    "item_type": "song",
-                    "sequence": 1,
-                    "length": 240,
-                    "song_id": "401",
-                    "description": None,
-                },
-            }
-        ]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {
+                    "type": "Item",
+                    "id": "800",
+                    "attributes": {
+                        "title": "Opening Song",
+                        "item_type": "song",
+                        "sequence": 1,
+                        "length": 240,
+                        "song_id": "401",
+                        "description": None,
+                    },
+                }
+            ],
+            total_count=1, truncated=False,
+        )
         mcp = make_services_mcp()
         fn = _get_tool_fn(mcp, "list_plan_items")
         result = await fn(service_type_id="201", plan_id="301")
-        assert len(result) == 1
-        assert result[0]["title"] == "Opening Song"
-        assert result[0]["song_id"] == "401"
+        assert "items" in result
+        assert result["items"][0]["title"] == "Opening Song"
+        assert result["items"][0]["song_id"] == "401"
 
 
 @pytest.mark.usefixtures("setup_context")
 class TestListTeamsToolBody:
     @pytest.mark.asyncio
     async def test_list_teams(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {
-                "type": "Team",
-                "id": "900",
-                "attributes": {
-                    "name": "Worship Team",
-                    "schedule_to": "plan",
-                    "rehearsal_team": False,
-                },
-            }
-        ]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {
+                    "type": "Team",
+                    "id": "900",
+                    "attributes": {
+                        "name": "Worship Team",
+                        "schedule_to": "plan",
+                        "rehearsal_team": False,
+                    },
+                }
+            ],
+            total_count=1, truncated=False,
+        )
         mcp = make_services_mcp()
         fn = _get_tool_fn(mcp, "list_teams")
         result = await fn(service_type_id="201")
-        assert len(result) == 1
-        assert result[0]["name"] == "Worship Team"
+        assert "items" in result
+        assert result["items"][0]["name"] == "Worship Team"
 
 
 @pytest.mark.usefixtures("setup_context")
 class TestListTeamPositionsToolBody:
     @pytest.mark.asyncio
     async def test_list_team_positions(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {
-                "type": "TeamPosition",
-                "id": "950",
-                "attributes": {
-                    "name": "Lead Vocalist",
-                    "quantity": 1,
-                    "tag_groups": [],
-                },
-            }
-        ]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {
+                    "type": "TeamPosition",
+                    "id": "950",
+                    "attributes": {
+                        "name": "Lead Vocalist",
+                        "quantity": 1,
+                        "tag_groups": [],
+                    },
+                }
+            ],
+            total_count=1, truncated=False,
+        )
         mcp = make_services_mcp()
         fn = _get_tool_fn(mcp, "list_team_positions")
         result = await fn(team_id="900")
-        assert len(result) == 1
-        assert result[0]["name"] == "Lead Vocalist"
+        assert "items" in result
+        assert result["items"][0]["name"] == "Lead Vocalist"
 
 
 @pytest.mark.usefixtures("setup_context")

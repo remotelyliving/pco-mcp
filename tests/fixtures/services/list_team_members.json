@@ -7,7 +7,11 @@
                 "name": "Alice Smith",
                 "team_position_name": "Vocalist",
                 "status": "C",
-                "notification_sent_at": null
+                "notification_sent_at": "2026-04-10T12:00:00Z"
+            },
+            "relationships": {
+                "person": {"data": {"type": "Person", "id": "1001"}},
+                "team_position": {"data": {"type": "TeamPosition", "id": "11"}}
             }
         },
         {
@@ -15,11 +19,38 @@
             "id": "502",
             "attributes": {
                 "name": "Bob Jones",
-                "team_position_name": "Sound Tech",
+                "team_position_name": "Guitarist",
                 "status": "U",
                 "notification_sent_at": null
+            },
+            "relationships": {
+                "person": {"data": {"type": "Person", "id": "1002"}},
+                "team_position": {"data": {"type": "TeamPosition", "id": "12"}}
             }
         }
     ],
+    "included": [
+        {
+            "type": "Person",
+            "id": "1001",
+            "attributes": {"first_name": "Alice", "last_name": "Smith"}
+        },
+        {
+            "type": "Person",
+            "id": "1002",
+            "attributes": {"first_name": "Bob", "last_name": "Jones"}
+        },
+        {
+            "type": "TeamPosition",
+            "id": "11",
+            "attributes": {"name": "Vocalist"}
+        },
+        {
+            "type": "TeamPosition",
+            "id": "12",
+            "attributes": {"name": "Guitarist"}
+        }
+    ],
+    "links": {},
     "meta": {"total_count": 2, "count": 2}
 }

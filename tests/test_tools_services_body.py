@@ -53,44 +53,65 @@ def make_mcp():
 
 class TestListServiceTypesToolBody:
     async def test_list_service_types(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {
-                "type": "ServiceType",
-                "id": "201",
-                "attributes": {
-                    "name": "Sunday Morning",
-                    "frequency": "Every week",
-                    "last_plan_from": "2026-03-30",
-                },
-            }
-        ]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {
+                    "type": "ServiceType",
+                    "id": "201",
+                    "attributes": {
+                        "name": "Sunday Morning",
+                        "frequency": "Every week",
+                        "last_plan_from": "2026-03-30",
+                    },
+                }
+            ],
+            total_count=1, truncated=False,
+        )
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_service_types")
-        types = await fn()
-        assert len(types) == 1
-        assert types[0]["name"] == "Sunday Morning"
+        result = await fn()
+        assert "items" in result
+        assert result["meta"]["total_count"] == 1
+        assert result["items"][0]["name"] == "Sunday Morning"
 
 
 class TestGetUpcomingPlansToolBody:
     async def test_get_upcoming_plans(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {
-                "type": "Plan",
-                "id": "301",
-                "attributes": {
-                    "title": "Easter Service",
-                    "dates": "April 20, 2026",
-                    "sort_date": "2026-04-20T09:00:00Z",
-                    "items_count": 12,
-                    "needed_positions_count": 3,
-                },
-            }
-        ]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {
+                    "type": "Plan",
+                    "id": "301",
+                    "attributes": {
+                        "title": "Easter Service",
+                        "dates": "April 20, 2026",
+                        "sort_date": "2026-04-20T09:00:00Z",
+                        "items_count": 12,
+                        "needed_positions_count": 3,
+                    },
+                }
+            ],
+            total_count=1, truncated=False,
+        )
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "get_upcoming_plans")
-        plans = await fn(service_type_id="201")
-        assert len(plans) == 1
-        assert plans[0]["title"] == "Easter Service"
+        result = await fn(service_type_id="201")
+        assert "items" in result
+        assert result["meta"]["total_count"] == 1
+        assert result["items"][0]["title"] == "Easter Service"
+        assert result["meta"]["filters_applied"].get("filter") == "future"
+
+    async def test_get_upcoming_plans_include_past(self, mock_client: AsyncMock) -> None:
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(items=[], total_count=0, truncated=False)
+        mcp = make_mcp()
+        fn = _get_tool_fn(mcp, "get_upcoming_plans")
+        result = await fn(service_type_id="201", include_past=True)
+        call_params = mock_client.get_all.call_args.kwargs["params"]
+        assert "filter" not in call_params
+        assert "filter" not in result["meta"]["filters_applied"]
 
 
 class TestGetPlanDetailsToolBody:
@@ -120,51 +141,80 @@ class TestGetPlanDetailsToolBody:
 
 class TestListSongsToolBody:
     async def test_list_songs_no_query(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {
-                "type": "Song",
-                "id": "401",
-                "attributes": {
-                    "title": "Amazing Grace",
-                    "author": "John Newton",
-                    "ccli_number": "12345",
-                    "last_scheduled_at": "2026-03-30",
-                },
-            }
-        ]
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {
+                    "type": "Song",
+                    "id": "401",
+                    "attributes": {
+                        "title": "Amazing Grace",
+                        "author": "John Newton",
+                        "ccli_number": "12345",
+                        "last_scheduled_at": "2026-03-30",
+                    },
+                }
+            ],
+            total_count=1, truncated=False,
+        )
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_songs")
-        songs = await fn()
-        assert len(songs) == 1
-        assert songs[0]["title"] == "Amazing Grace"
+        result = await fn()
+        assert "items" in result
+        assert result["items"][0]["title"] == "Amazing Grace"
 
     async def test_list_songs_with_query(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = []
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(items=[], total_count=0, truncated=False)
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_songs")
-        songs = await fn(query="Amazing")
-        assert songs == []
+        result = await fn(query="Amazing Grace")
+        assert result["items"] == []
+        # Exact-match filter is exposed in filters_applied
+        assert result["meta"]["filters_applied"].get("where[title]") == "Amazing Grace"
 
 
 class TestListTeamMembersToolBody:
     async def test_list_team_members(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {
-                "type": "PlanPerson",
-                "id": "501",
-                "attributes": {
-                    "name": "Alice Smith",
-                    "team_position_name": "Vocalist",
-                    "status": "C",
-                    "notification_sent_at": None,
+        from pco_mcp.pco.client import PagedResult
+        mock_client.get_all.return_value = PagedResult(
+            items=[
+                {
+                    "type": "PlanPerson",
+                    "id": "501",
+                    "attributes": {
+                        "name": "Alice Smith",
+                        "team_position_name": "Vocalist",
+                        "status": "C",
+                        "notification_sent_at": None,
+                    },
+                    "relationships": {
+                        "person": {"data": {"type": "Person", "id": "1001"}},
+                        "team_position": {"data": {"type": "TeamPosition", "id": "11"}},
+                    },
+                }
+            ],
+            total_count=1, truncated=False,
+            included=[
+                {
+                    "type": "Person",
+                    "id": "1001",
+                    "attributes": {"first_name": "Alice", "last_name": "Smith"},
                 },
-            }
-        ]
+                {
+                    "type": "TeamPosition",
+                    "id": "11",
+                    "attributes": {"name": "Vocalist"},
+                },
+            ],
+        )
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_team_members")
-        members = await fn(service_type_id="201", plan_id="301")
-        assert len(members) == 1
-        assert members[0]["person_name"] == "Alice Smith"
+        result = await fn(service_type_id="201", plan_id="301")
+        assert "items" in result
+        assert result["items"][0]["person_name"] == "Alice Smith"
+        assert result["items"][0]["person_id"] == "1001"
+        assert result["items"][0]["team_position_id"] == "11"
 
 
 class TestScheduleTeamMemberToolBody:
