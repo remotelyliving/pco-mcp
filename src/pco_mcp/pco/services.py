@@ -611,15 +611,11 @@ class ServicesAPI:
             attrs = raw.get("attributes", {})
             if not attrs.get("ccli_number"):
                 missing.append(self._simplify_song(raw))
+        envelope = make_envelope(result, missing, params)
         return {
             "total_scanned": len(result.items),
             "total_missing": len(missing),
-            "items": missing,
-            "meta": {
-                "total_count": result.total_count,
-                "truncated": result.truncated,
-                "filters_applied": {},
-            },
+            **envelope,
         }
 
     async def list_media(self, media_type: str | None = None) -> dict[str, Any]:
