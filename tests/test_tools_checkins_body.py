@@ -1,7 +1,7 @@
 """Tests for check-in tool function bodies."""
 from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
-from pco_mcp.pco.client import PCOClient
+from pco_mcp.pco.client import PCOClient, PagedResult
 
 
 def _fake_access_token(token: str = "test-pco-token"):
@@ -43,41 +43,67 @@ def make_mcp():
 
 
 class TestListCheckinEventsToolBody:
-    async def test_list_events(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {"type": "Event", "id": "101", "attributes": {"name": "Sunday Morning", "frequency": "weekly", "created_at": "2025-01-01T00:00:00Z", "archived_at": None}}
-        ]
+    async def test_returns_envelope(self, mock_client: AsyncMock) -> None:
+        mock_client.get_all.return_value = PagedResult(
+            items=[{
+                "type": "Event", "id": "101",
+                "attributes": {
+                    "name": "Sunday Morning", "frequency": "weekly",
+                    "created_at": "2025-01-01T00:00:00Z", "archived_at": None,
+                },
+            }],
+            total_count=1, truncated=False,
+        )
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "list_checkin_events")
-        events = await fn()
-        assert len(events) == 1
-        assert events[0]["name"] == "Sunday Morning"
+        result = await fn()
+        assert result["items"][0]["name"] == "Sunday Morning"
+        assert result["meta"]["filters_applied"].get("where[archived_at]") == ""
 
 
 class TestGetEventAttendanceToolBody:
-    async def test_get_attendance(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {"type": "CheckIn", "id": "501", "attributes": {"first_name": "Alice", "last_name": "Smith", "created_at": "2026-04-13T09:15:00Z", "security_code": "ABC123"}}
-        ]
+    async def test_returns_envelope(self, mock_client: AsyncMock) -> None:
+        mock_client.get_all.return_value = PagedResult(
+            items=[{
+                "type": "CheckIn", "id": "501",
+                "attributes": {
+                    "first_name": "Alice", "last_name": "Smith",
+                    "created_at": "2026-04-13T09:15:00Z", "security_code": "ABC123",
+                },
+            }],
+            total_count=1, truncated=False,
+        )
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "get_event_attendance")
-        checkins = await fn(event_id="101")
-        assert len(checkins) == 1
-        assert checkins[0]["first_name"] == "Alice"
+        result = await fn(event_id="101")
+        assert result["items"][0]["first_name"] == "Alice"
+        assert result["meta"]["total_count"] == 1
 
 
 class TestGetHeadcountsToolBody:
-    async def test_get_headcounts(self, mock_client: AsyncMock) -> None:
-        mock_client.get_all.return_value = [
-            {"type": "EventPeriod", "id": "301", "attributes": {"starts_at": "2026-04-13T09:00:00Z", "ends_at": "2026-04-13T10:30:00Z"}}
-        ]
+    async def test_returns_envelope(self, mock_client: AsyncMock) -> None:
+        mock_client.get_all.return_value = PagedResult(
+            items=[{
+                "type": "EventPeriod", "id": "301",
+                "attributes": {"starts_at": "2026-04-13T09:00:00Z"},
+            }],
+            total_count=1, truncated=False,
+        )
         mock_client.get.return_value = {
-            "data": [
-                {"type": "Headcount", "id": "401", "attributes": {"total": 150, "attending_count": 150}, "relationships": {"attendance_type": {"data": {"type": "AttendanceType", "id": "50", "attributes": {"name": "Main Sanctuary"}}}}}
-            ]
+            "data": [{
+                "type": "Headcount", "id": "401",
+                "attributes": {"total": 150},
+                "relationships": {
+                    "attendance_type": {
+                        "data": {
+                            "type": "AttendanceType", "id": "50",
+                            "attributes": {"name": "Main Sanctuary"},
+                        }
+                    }
+                }
+            }]
         }
         mcp = make_mcp()
         fn = _get_tool_fn(mcp, "get_headcounts")
-        headcounts = await fn(event_id="101")
-        assert len(headcounts) == 1
-        assert headcounts[0]["total"] == 150
+        result = await fn(event_id="101")
+        assert result["items"][0]["total"] == 150
