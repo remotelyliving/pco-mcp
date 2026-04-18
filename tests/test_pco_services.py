@@ -138,6 +138,33 @@ class TestListPlanItems:
         assert "sequence" in item
         assert "song_id" in item
 
+    async def test_includes_arrangement_id_and_key_id(self, mock_client: AsyncMock) -> None:
+        """arrangement_id and key_id are foreign keys the write API accepts —
+        they must round-trip through the curated schema."""
+        from pco_mcp.pco.client import PagedResult
+        raw = {
+            "type": "Item",
+            "id": "1",
+            "attributes": {
+                "title": "Amazing Grace",
+                "sequence": 1,
+                "item_type": "song",
+                "length": 240,
+                "song_id": 101,
+                "arrangement_id": 202,
+                "key_id": 303,
+                "description": None,
+                "service_position": "during",
+            },
+        }
+        mock_client.get_all.return_value = PagedResult(items=[raw], total_count=1, truncated=False)
+        api = ServicesAPI(mock_client)
+        result = await api.list_plan_items("1", "2")
+        item = result["items"][0]
+        assert item["song_id"] == 101
+        assert item["arrangement_id"] == 202
+        assert item["key_id"] == 303
+
 
 class TestCreatePlan:
     async def test_returns_simplified_plan(self, mock_client: AsyncMock) -> None:
@@ -463,6 +490,28 @@ class TestGetNeededPositions:
         api = ServicesAPI(mock_client)
         result = await api.get_needed_positions("201", "301")
         assert "scheduled_to" in result["items"][0]
+
+    async def test_team_position_id_flattened_from_relationship(self, mock_client: AsyncMock) -> None:
+        """team_position_id must be present whenever the team_position ref exists."""
+        from pco_mcp.pco.client import PagedResult
+        raw = {
+            "type": "NeededPosition",
+            "id": "5",
+            "attributes": {
+                "team_position_name": "Vocalist",
+                "quantity": 2,
+                "scheduled_to": "anyone",
+            },
+            "relationships": {
+                "team_position": {"data": {"type": "TeamPosition", "id": "77"}}
+            },
+        }
+        mock_client.get_all.return_value = PagedResult(items=[raw], total_count=1, truncated=False)
+        api = ServicesAPI(mock_client)
+        result = await api.get_needed_positions("1", "2")
+        np = result["items"][0]
+        assert np["team_position_id"] == "77"
+        assert np["team_position_name"] == "Vocalist"
 
 
 class TestGetSong:

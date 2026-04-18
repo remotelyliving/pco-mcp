@@ -81,6 +81,47 @@ class TestGetEvents:
         assert result["meta"]["truncated"] is True
         assert result["meta"]["total_count"] == 15000
 
+    async def test_description_not_truncated(self, mock_client: AsyncMock) -> None:
+        """Full description must be preserved — no 200-char truncation."""
+        from pco_mcp.pco.client import PagedResult
+        long_desc = "This is a long description. " * 20  # ~560 chars
+        raw = {
+            "type": "Event",
+            "id": "201",
+            "attributes": {
+                "name": "Easter",
+                "description": long_desc,
+                "starts_at": "2026-04-20T09:00:00Z",
+                "ends_at": "2026-04-20T11:00:00Z",
+                "recurrence": None,
+                "visible_in_church_center": True,
+            },
+            "relationships": {},
+        }
+        mock_client.get_all.return_value = PagedResult(items=[raw], total_count=1, truncated=False)
+        api = CalendarAPI(mock_client)
+        result = await api.get_events()
+        assert result["items"][0]["description"] == long_desc
+        assert "..." not in result["items"][0]["description"]
+
+    async def test_owner_id_flattened_from_relationship(self, mock_client: AsyncMock) -> None:
+        """owner_id must be present whenever the owner relationship ref exists."""
+        from pco_mcp.pco.client import PagedResult
+        raw = {
+            "type": "Event", "id": "201",
+            "attributes": {
+                "name": "E", "description": "", "starts_at": None,
+                "ends_at": None, "recurrence": None, "visible_in_church_center": False,
+            },
+            "relationships": {
+                "owner": {"data": {"type": "Person", "id": "42"}}
+            },
+        }
+        mock_client.get_all.return_value = PagedResult(items=[raw], total_count=1, truncated=False)
+        api = CalendarAPI(mock_client)
+        result = await api.get_events()
+        assert result["items"][0]["owner_id"] == "42"
+
 
 class TestGetEventDetail:
     async def test_returns_full_detail(self, mock_client: AsyncMock) -> None:

@@ -62,19 +62,16 @@ class CalendarAPI:
     ) -> dict[str, Any]:
         """Curated event record — strips JSON:API scaffolding, flattens include=.
 
-        Kept: id, name, description (200-char truncated), starts_at, ends_at,
-        recurrence, visible_in_church_center, owner_name (from include=owner),
-        instances (from include=event_instances, simplified).
+        Kept: id, name, description (full text), starts_at, ends_at,
+        recurrence, visible_in_church_center, owner_id, owner_name (from
+        include=owner), instances (from include=event_instances, simplified).
         Dropped: links.*, raw relationships (replaced by flattened fields).
         """
         attrs = raw.get("attributes", {})
-        desc = attrs.get("description") or ""
-        if len(desc) > 200:
-            desc = desc[:197] + "..."
         simplified: dict[str, Any] = {
             "id": raw["id"],
             "name": attrs.get("name", ""),
-            "description": desc,
+            "description": attrs.get("description") or "",
             "starts_at": attrs.get("starts_at"),
             "ends_at": attrs.get("ends_at"),
             "recurrence": attrs.get("recurrence"),
@@ -82,16 +79,19 @@ class CalendarAPI:
         }
         rels = raw.get("relationships", {})
         owner_ref = rels.get("owner", {}).get("data")
-        if owner_ref and included_index:
-            owner_type = owner_ref.get("type")
+        if owner_ref:
             owner_id = owner_ref.get("id")
-            if owner_type and owner_id:
-                owner = included_index.get((owner_type, owner_id))
-                if owner:
-                    oattrs = owner.get("attributes", {})
-                    simplified["owner_name"] = (
-                        f"{oattrs.get('first_name', '')} {oattrs.get('last_name', '')}".strip()
-                    )
+            if owner_id:
+                simplified["owner_id"] = owner_id
+            if included_index:
+                owner_type = owner_ref.get("type")
+                if owner_type and owner_id:
+                    owner = included_index.get((owner_type, owner_id))
+                    if owner:
+                        oattrs = owner.get("attributes", {})
+                        simplified["owner_name"] = (
+                            f"{oattrs.get('first_name', '')} {oattrs.get('last_name', '')}".strip()
+                        )
         instance_refs = rels.get("event_instances", {}).get("data") or []
         if instance_refs and included_index:
             instances = []

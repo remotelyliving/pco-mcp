@@ -748,6 +748,11 @@ class ServicesAPI:
         return simplified
 
     def _simplify_item(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """Curated plan item. Kept: id, title, sequence, item_type, length,
+        song_id, arrangement_id, key_id, description, service_position.
+        Dropped: JSON:API links, relationships (foreign keys preserved in
+        attribute form).
+        """
         attrs = raw.get("attributes", {})
         return {
             "id": raw["id"],
@@ -756,6 +761,8 @@ class ServicesAPI:
             "item_type": attrs.get("item_type"),
             "length": attrs.get("length"),
             "song_id": attrs.get("song_id"),
+            "arrangement_id": attrs.get("arrangement_id"),
+            "key_id": attrs.get("key_id"),
             "description": attrs.get("description"),
             "service_position": attrs.get("service_position"),
         }
@@ -833,13 +840,23 @@ class ServicesAPI:
         }
 
     def _simplify_needed_position(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """Curated needed-position. Kept: id, team_position_id,
+        team_position_name, quantity, scheduled_to.
+        """
         attrs = raw.get("attributes", {})
-        return {
+        rels = raw.get("relationships", {})
+        simplified: dict[str, Any] = {
             "id": raw["id"],
             "team_position_name": attrs.get("team_position_name", ""),
             "quantity": attrs.get("quantity", 0),
             "scheduled_to": attrs.get("scheduled_to"),
         }
+        position_ref = rels.get("team_position", {}).get("data")
+        if position_ref:
+            position_id = position_ref.get("id")
+            if position_id:
+                simplified["team_position_id"] = position_id
+        return simplified
 
     def _simplify_ccli_reporting(self, raw: dict[str, Any]) -> dict[str, Any]:
         attrs = raw.get("attributes", {})
